@@ -1,0 +1,19 @@
+{
+  "name": "smart-document-collaboration-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Collaborative document platform monorepo",
+  "type": "module",
+  "scripts": {
+    "dev:backend": "node --watch backend/src/server.js",
+    "start:backend": "node backend/src/server.js",
+    "check:backend": "node --check backend/src/server.js",
+    "check": "npm run check:backend"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.6.2"
+  }
+}
