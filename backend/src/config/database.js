@@ -1,4 +1,11 @@
-// The module owner responsible for a feature owns its models and database access.
+import mongoose from 'mongoose';
+import { env } from './env.js';
+
 export async function connectDatabase() {
-  // Add the selected database client and connection lifecycle here.
+  if (!env.databaseUrl) {
+    throw new Error('DATABASE_URL is not set');
+  }
+
+  await mongoose.connect(env.databaseUrl);
+  console.log(`Connected to MongoDB: ${mongoose.connection.host}`);
 }
