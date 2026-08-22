@@ -28,3 +28,5 @@ skills/
 .DS_Store
 Thumbs.db
 
+# Local Architecture & Blueprint Documents
+Smart_Document_Platform_Architecture_Blueprint.md
