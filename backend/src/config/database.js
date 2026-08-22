@@ -3,15 +3,9 @@ import { env } from './env.js';
 
 export async function connectDatabase() {
   if (!env.databaseUrl) {
-    console.warn('[Database] DATABASE_URL is not defined in environment. Database connection skipped.');
-    return;
+    throw new Error('DATABASE_URL is not set');
   }
 
-  try {
-    await mongoose.connect(env.databaseUrl);
-    console.log('[Database] Successfully connected to MongoDB.');
-  } catch (error) {
-    console.error('[Database] Failed to connect to MongoDB:', error.message);
-  }
+  await mongoose.connect(env.databaseUrl);
+  console.log(`Connected to MongoDB: ${mongoose.connection.host}`);
 }
-
