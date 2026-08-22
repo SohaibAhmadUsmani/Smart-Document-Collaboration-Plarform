@@ -1,4 +1,12 @@
-// The module owner responsible for a feature owns its models and database access.
+import mongoose from 'mongoose';
+import { env } from './env.js';
+
 export async function connectDatabase() {
-  // Add the selected database client and connection lifecycle here.
+  try {
+    await mongoose.connect(env.databaseUrl);
+    console.log('MongoDB connected');
+  } catch (error) {
+    console.error('MongoDB connection error:', error.message);
+    process.exit(1);
+  }
 }
