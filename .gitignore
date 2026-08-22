@@ -6,3 +6,25 @@ uploads/
 coverage/
 dist/
 *.log
+
+# AI Agent Skills, Rules & Local Configs
+.agent/
+.gemini/
+.claude/
+.cursor/
+.impeccable/
+.skills/
+skills/
+*.skill
+
+# IDE & Workspace Settings
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+
+# OS & Temp Cache
+.DS_Store
+Thumbs.db
+
