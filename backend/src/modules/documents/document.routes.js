@@ -41,6 +41,27 @@ documentRouter.patch(
   controller.autosaveDocumentHandler
 );
 
+// POST /api/documents/:id/duplicate - Clone / duplicate an existing document
+documentRouter.post(
+  '/:id/duplicate',
+  validator.validateDocumentId,
+  controller.duplicateDocumentHandler
+);
+
+// GET /api/documents/:id/export - Export document in Markdown, JSON, or Text
+documentRouter.get(
+  '/:id/export',
+  validator.validateDocumentId,
+  controller.exportDocumentHandler
+);
+
+// GET /api/documents/:id/stats - Get live word count and reading statistics
+documentRouter.get(
+  '/:id/stats',
+  validator.validateDocumentId,
+  controller.getDocumentStatsHandler
+);
+
 // DELETE /api/documents/:id - Archive (soft-delete) document
 documentRouter.delete(
   '/:id',

@@ -1,4 +1,5 @@
 import { DocumentModel } from './document.model.js';
+import { calculateDocumentStats, astToMarkdown } from './document.utils.js';
 
 /**
  * Creates a new document in the database.
@@ -46,30 +47,49 @@ export async function getDocumentById(documentId, options = {}) {
 }
 
 /**
- * Lists documents in a workspace, with optional folder filter and pagination.
+ * Lists documents in a workspace, with optional folder, search, and sort filters.
  *
  * @param {string} workspaceId - Workspace ID.
- * @param {Object} filters - Optional folder and pagination filters.
- * @returns {Promise<{ documents: Array, total: number }>}
+ * @param {Object} filters - Optional folder, search, sorting, and pagination filters.
+ * @returns {Promise<{ documents: Array, total: number, page: number, limit: number }>}
  */
 export async function listDocuments(workspaceId, filters = {}) {
-  const { folderId, isArchived = false, page = 1, limit = 50 } = filters;
+  const {
+    folderId,
+    search,
+    sortBy = 'updatedAt_desc',
+    isArchived = false,
+    page = 1,
+    limit = 50,
+  } = filters;
 
   const query = {
     workspaceId,
     isArchived: Boolean(isArchived),
   };
 
-  if (folderId !== undefined) {
+  if (folderId !== undefined && folderId !== null) {
     query.folderId = folderId;
   }
+
+  if (search && typeof search === 'string' && search.trim()) {
+    query.title = { $regex: search.trim(), $options: 'i' };
+  }
+
+  // Determine sort order
+  let sortOption = { updatedAt: -1 };
+  if (sortBy === 'updatedAt_asc') sortOption = { updatedAt: 1 };
+  if (sortBy === 'createdAt_desc') sortOption = { createdAt: -1 };
+  if (sortBy === 'createdAt_asc') sortOption = { createdAt: 1 };
+  if (sortBy === 'title_asc') sortOption = { title: 1 };
+  if (sortBy === 'title_desc') sortOption = { title: -1 };
 
   const skip = (Math.max(1, page) - 1) * Math.min(100, limit);
 
   const [documents, total] = await Promise.all([
     DocumentModel.find(query)
       .select('id workspaceId folderId title icon coverImage createdBy lastModifiedBy updatedAt createdAt isArchived version')
-      .sort({ updatedAt: -1 })
+      .sort(sortOption)
       .skip(skip)
       .limit(Math.min(100, limit))
       .lean()
@@ -134,6 +154,96 @@ export async function autosaveDocumentContent(documentId, contentPayload, userId
     },
     { new: true, runValidators: true }
   ).exec();
+}
+
+/**
+ * Duplicates an existing document.
+ *
+ * @param {string} documentId - ID of document to clone.
+ * @param {string} userId - User ID performing clone.
+ * @returns {Promise<Object>} Cloned document.
+ */
+export async function duplicateDocument(documentId, userId) {
+  const original = await DocumentModel.findOne({ _id: documentId, isArchived: false }).lean().exec();
+  if (!original) return null;
+
+  const cloned = new DocumentModel({
+    workspaceId: original.workspaceId,
+    folderId: original.folderId,
+    title: `Copy of ${original.title}`,
+    content: original.content,
+    plainText: original.plainText,
+    icon: original.icon,
+    coverImage: original.coverImage,
+    createdBy: userId,
+    lastModifiedBy: userId,
+    isArchived: false,
+    version: 1,
+  });
+
+  return await cloned.save();
+}
+
+/**
+ * Exports document content in requested format (markdown, json, text).
+ *
+ * @param {string} documentId - Document ID.
+ * @param {string} [format='markdown'] - Desired format: 'markdown' | 'json' | 'text'.
+ * @returns {Promise<{ filename: string, mimeType: string, content: string }>}
+ */
+export async function exportDocument(documentId, format = 'markdown') {
+  const document = await DocumentModel.findOne({ _id: documentId, isArchived: false }).lean().exec();
+  if (!document) return null;
+
+  const safeTitle = (document.title || 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  if (format === 'json') {
+    return {
+      filename: `${safeTitle}.json`,
+      mimeType: 'application/json',
+      content: JSON.stringify(document, null, 2),
+    };
+  }
+
+  if (format === 'text') {
+    return {
+      filename: `${safeTitle}.txt`,
+      mimeType: 'text/plain',
+      content: document.plainText || '',
+    };
+  }
+
+  // Default: markdown
+  const markdown = astToMarkdown(document.content, document.title);
+  return {
+    filename: `${safeTitle}.md`,
+    mimeType: 'text/markdown',
+    content: markdown,
+  };
+}
+
+/**
+ * Computes word/character statistics for a document.
+ *
+ * @param {string} documentId - Document ID.
+ * @returns {Promise<Object|null>}
+ */
+export async function getDocumentStats(documentId) {
+  const document = await DocumentModel.findOne({ _id: documentId, isArchived: false })
+    .select('plainText title version updatedAt')
+    .lean()
+    .exec();
+
+  if (!document) return null;
+
+  const stats = calculateDocumentStats(document.plainText || '');
+  return {
+    documentId,
+    title: document.title,
+    version: document.version,
+    updatedAt: document.updatedAt,
+    ...stats,
+  };
 }
 
 /**
