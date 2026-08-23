@@ -1,22 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { EditorHeader } from './EditorHeader.jsx';
+import { EditorToolbar } from './EditorToolbar.jsx';
+import { DocumentStats } from './DocumentStats.jsx';
 import { useAutosave } from '../hooks/useAutosave.js';
 import { apiGetDocument, apiUpdateDocumentMetadata } from '../services/documentApi.js';
 import { DEFAULT_DOCUMENT_AST } from '../types/document.js';
 
 /**
  * Main container component for the Document Editor.
+ * Manages document loading, editing state, toolbar triggers, autosaving, and statistics.
  *
  * @param {Object} props
  * @param {string} props.documentId - Document ID to load and edit
- * @param {boolean} [props.isReadOnly=false] - Whether editing is disabled
+ * @param {boolean} [props.initialReadOnly=false] - Initial read-only flag
+ * @param {Function} [props.onDocumentArchived] - Callback when document is moved to trash
+ * @param {Function} [props.onDocumentDuplicated] - Callback when document is duplicated
  */
-export function EditorCanvas({ documentId, isReadOnly = false }) {
+export function EditorCanvas({
+  documentId,
+  initialReadOnly = false,
+  onDocumentArchived,
+  onDocumentDuplicated,
+}) {
   const [documentData, setDocumentData] = useState(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState(DEFAULT_DOCUMENT_AST);
+  const [plainText, setPlainText] = useState('');
+  const [isReadOnly, setIsReadOnly] = useState(initialReadOnly);
   const [isLoading, setIsLoading] = useState(Boolean(documentId));
   const [loadError, setLoadError] = useState(null);
+  const [activeMarks, setActiveMarks] = useState({});
 
   // Load document data from backend API
   useEffect(() => {
@@ -32,6 +45,7 @@ export function EditorCanvas({ documentId, isReadOnly = false }) {
           setDocumentData(doc);
           setTitle(doc.title || 'Untitled Document');
           setContent(doc.content || DEFAULT_DOCUMENT_AST);
+          setPlainText(doc.plainText || '');
         }
       })
       .catch((err) => {
@@ -52,6 +66,7 @@ export function EditorCanvas({ documentId, isReadOnly = false }) {
   const { status: saveStatus, lastSavedAt, error: saveError } = useAutosave({
     documentId,
     content,
+    plainText,
     enabled: !isReadOnly && Boolean(documentId),
     debounceMs: 1500,
   });
@@ -66,6 +81,20 @@ export function EditorCanvas({ documentId, isReadOnly = false }) {
         console.error('[Title Update Error]:', err);
       }
     }
+  };
+
+  // Handle toolbar command triggers
+  const handleToolbarCommand = (command, payload) => {
+    if (isReadOnly) return;
+
+    // Toggle active mark state for UI feedback
+    setActiveMarks((prev) => ({
+      ...prev,
+      [command]: !prev[command],
+    }));
+
+    // Dispatches command to the active editor engine (TipTap / Slate)
+    console.log(`[Editor Command]: ${command}`, payload);
   };
 
   if (isLoading) {
@@ -87,23 +116,38 @@ export function EditorCanvas({ documentId, isReadOnly = false }) {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
+      {/* Top Header with title, autosave status, and actions */}
       <EditorHeader
+        documentId={documentId}
         title={title}
         onTitleChange={handleTitleChange}
         saveStatus={saveStatus}
         lastSavedAt={lastSavedAt}
         isReadOnly={isReadOnly}
+        onReadOnlyToggle={setIsReadOnly}
+        onDocumentDuplicated={onDocumentDuplicated}
+        onDocumentArchived={onDocumentArchived}
       />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-8 py-10">
-        {/* The rich-text editor surface (TipTap / Slate) mounts here */}
+      {/* Rich formatting toolbar */}
+      <EditorToolbar
+        onCommand={handleToolbarCommand}
+        activeMarks={activeMarks}
+        isReadOnly={isReadOnly}
+      />
+
+      {/* Main document canvas */}
+      <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-8">
         <div className="min-h-[70vh] bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-8">
-          {/* Editor content placeholder/slot */}
-          <div className="prose dark:prose-invert max-w-none">
-            {/* Rich text node tree rendered here by chosen editor engine */}
+          {/* Editable rich-text surface placeholder for TipTap/Slate */}
+          <div className="prose dark:prose-invert max-w-none focus:outline-none min-h-[500px]">
+            {/* Rich text node tree rendered here */}
           </div>
         </div>
       </main>
+
+      {/* Live metrics footer */}
+      <DocumentStats plainText={plainText} />
     </div>
   );
 }

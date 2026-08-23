@@ -95,6 +95,82 @@ export async function apiAutosaveDocument(documentId, contentPayload) {
 }
 
 /**
+ * Duplicate / clone an existing document.
+ * @param {string} documentId
+ * @returns {Promise<Object>}
+ */
+export async function apiDuplicateDocument(documentId) {
+  const response = await fetch(`${API_BASE}/${documentId}/duplicate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || `Failed to duplicate document: ${response.statusText}`);
+  }
+
+  return data.data;
+}
+
+/**
+ * Export document content in markdown, json, or text.
+ * Triggers a file download in the browser.
+ * @param {string} documentId
+ * @param {string} [format='markdown']
+ */
+export async function apiExportDocument(documentId, format = 'markdown') {
+  const response = await fetch(`${API_BASE}/${documentId}/export?format=${format}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to export document: ${response.statusText}`);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('Content-Disposition');
+  let filename = `document.${format === 'markdown' ? 'md' : format === 'json' ? 'json' : 'txt'}`;
+
+  if (disposition && disposition.includes('filename=')) {
+    const matches = disposition.match(/filename="?([^"]+)"?/);
+    if (matches && matches[1]) filename = matches[1];
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+/**
+ * Retrieve document word and reading statistics.
+ * @param {string} documentId
+ * @returns {Promise<Object>}
+ */
+export async function apiGetDocumentStats(documentId) {
+  const response = await fetch(`${API_BASE}/${documentId}/stats`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || `Failed to fetch document stats: ${response.statusText}`);
+  }
+
+  return data.data;
+}
+
+/**
  * Move document to archive / trash.
  * @param {string} documentId
  * @returns {Promise<boolean>}
@@ -118,13 +194,15 @@ export async function apiArchiveDocument(documentId) {
 /**
  * List documents in a workspace with optional filters.
  * @param {string} workspaceId
- * @param {Object} [filters] - { folderId, page, limit }
+ * @param {Object} [filters] - { folderId, search, sortBy, page, limit }
  * @returns {Promise<{ documents: Array, pagination: Object }>}
  */
 export async function apiListDocuments(workspaceId, filters = {}) {
   const params = new URLSearchParams({ workspaceId });
 
   if (filters.folderId) params.append('folderId', filters.folderId);
+  if (filters.search) params.append('search', filters.search);
+  if (filters.sortBy) params.append('sortBy', filters.sortBy);
   if (filters.page) params.append('page', filters.page);
   if (filters.limit) params.append('limit', filters.limit);
 

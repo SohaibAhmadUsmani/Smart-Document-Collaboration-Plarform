@@ -51,11 +51,11 @@ export async function getDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to list documents for a workspace.
+ * Handler to list documents for a workspace with sorting & search.
  */
 export async function listDocumentsHandler(req, res, next) {
   try {
-    const { workspaceId, folderId, isArchived, page, limit } = req.query;
+    const { workspaceId, folderId, search, sortBy, isArchived, page, limit } = req.query;
 
     if (!workspaceId) {
       return res.status(400).json({
@@ -67,6 +67,8 @@ export async function listDocumentsHandler(req, res, next) {
 
     const result = await documentService.listDocuments(workspaceId, {
       folderId,
+      search,
+      sortBy,
       isArchived: isArchived === 'true',
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 50,
@@ -138,6 +140,86 @@ export async function autosaveDocumentHandler(req, res, next) {
         version: updated.version,
         updatedAt: updated.updatedAt,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handler to duplicate / clone an existing document.
+ */
+export async function duplicateDocumentHandler(req, res, next) {
+  try {
+    const { id } = req.params;
+    const userId = getUserId(req);
+    const duplicated = await documentService.duplicateDocument(id, userId);
+
+    if (!duplicated) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: `Document with ID '${id}' was not found to duplicate.`,
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Document duplicated successfully',
+      data: duplicated,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handler to export document content in Markdown, JSON, or Text format.
+ */
+export async function exportDocumentHandler(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { format = 'markdown' } = req.query;
+
+    const exported = await documentService.exportDocument(id, format);
+
+    if (!exported) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: `Document with ID '${id}' was not found to export.`,
+      });
+    }
+
+    // Set download headers
+    res.setHeader('Content-Type', exported.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
+
+    return res.status(200).send(exported.content);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handler to retrieve word count and reading statistics for a document.
+ */
+export async function getDocumentStatsHandler(req, res, next) {
+  try {
+    const { id } = req.params;
+    const stats = await documentService.getDocumentStats(id);
+
+    if (!stats) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: `Document with ID '${id}' was not found.`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: stats,
     });
   } catch (error) {
     next(error);
