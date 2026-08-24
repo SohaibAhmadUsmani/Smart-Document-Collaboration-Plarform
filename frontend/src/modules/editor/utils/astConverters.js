@@ -1,6 +1,25 @@
 import { extractNodeText } from './astWalker.js';
 
 /**
+ * Recursively extracts plain text from a TipTap/ProseMirror AST node or document.
+ * @param {Object} node - AST Node or root document
+ * @returns {string}
+ */
+export function extractPlainTextFromAst(node) {
+  if (!node) return '';
+
+  if (node.type === 'text' && node.text) {
+    return node.text;
+  }
+
+  if (Array.isArray(node.content)) {
+    return node.content.map(extractPlainTextFromAst).join('\n');
+  }
+
+  return '';
+}
+
+/**
  * Converts a structured document AST JSON tree into clean Markdown text.
  *
  * @param {Object} documentAst
