@@ -1,5 +1,65 @@
 import mongoose from 'mongoose';
 
+/**
+ * Rich Attachment Subdocument Schema
+ */
+const AttachmentSubSchema = new mongoose.Schema(
+  {
+    attachmentId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    fileId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    fileName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    fileSize: {
+      type: Number,
+      required: true,
+    },
+    mimeType: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    storageKey: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    downloadUrl: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    nodeAnchorId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    uploadedBy: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+/**
+ * Main Document Schema
+ */
 const DocumentSchema = new mongoose.Schema(
   {
     workspaceId: {
@@ -28,6 +88,7 @@ const DocumentSchema = new mongoose.Schema(
         content: [
           {
             type: 'paragraph',
+            attrs: { blockId: 'init-block-1' },
             content: [],
           },
         ],
@@ -48,6 +109,27 @@ const DocumentSchema = new mongoose.Schema(
       default: null,
       trim: true,
     },
+    tags: {
+      type: [
+        {
+          type: String,
+          trim: true,
+          lowercase: true,
+          maxlength: [30, 'Tag cannot exceed 30 characters'],
+        },
+      ],
+      default: [],
+      index: true,
+    },
+    favoritedBy: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+    attachments: {
+      type: [AttachmentSubSchema],
+      default: [],
+    },
     createdBy: {
       type: String,
       required: [true, 'Creator ID is required'],
@@ -64,10 +146,33 @@ const DocumentSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    scheduledPermanentDeletionAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    previousFolderId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     version: {
       type: Number,
       default: 1,
       min: 1,
+    },
+    snapshotCheckpointVersion: {
+      type: Number,
+      default: 1,
     },
   },
   {
@@ -91,8 +196,11 @@ const DocumentSchema = new mongoose.Schema(
   }
 );
 
-// Compound indexes for optimal querying
+// Compound indexes for enterprise queries
 DocumentSchema.index({ workspaceId: 1, isArchived: 1, updatedAt: -1 });
 DocumentSchema.index({ workspaceId: 1, folderId: 1, isArchived: 1 });
+DocumentSchema.index({ workspaceId: 1, tags: 1, isArchived: 1 });
+DocumentSchema.index({ workspaceId: 1, favoritedBy: 1, isArchived: 1 });
+DocumentSchema.index({ isArchived: 1, scheduledPermanentDeletionAt: 1 });
 
 export const DocumentModel = mongoose.models.Document || mongoose.model('Document', DocumentSchema);

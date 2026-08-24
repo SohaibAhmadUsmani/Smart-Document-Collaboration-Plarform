@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
  * Validates request payload for creating a new document.
  */
 export function validateCreateDocument(req, res, next) {
-  const { workspaceId, title, folderId, content } = req.body;
+  const { workspaceId, title, folderId, content, tags } = req.body;
 
   if (!workspaceId || typeof workspaceId !== 'string' || !workspaceId.trim()) {
     return res.status(400).json({
@@ -31,6 +31,13 @@ export function validateCreateDocument(req, res, next) {
     return res.status(400).json({
       error: 'Validation Error',
       message: 'Document content must be a valid JSON object representing the document AST.',
+    });
+  }
+
+  if (tags !== undefined && !Array.isArray(tags)) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Tags must be an array of strings.',
     });
   }
 
@@ -91,6 +98,93 @@ export function validateAutosave(req, res, next) {
     return res.status(400).json({
       error: 'Validation Error',
       message: 'plainText must be a string if provided.',
+    });
+  }
+
+  next();
+}
+
+/**
+ * Validates request payload for updating tags.
+ */
+export function validateTags(req, res, next) {
+  const { tags } = req.body;
+
+  if (!Array.isArray(tags)) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Payload must contain a "tags" array of strings.',
+    });
+  }
+
+  next();
+}
+
+/**
+ * Validates request payload for attaching a file reference.
+ */
+export function validateAttachment(req, res, next) {
+  const { fileId, fileName, fileSize, mimeType, downloadUrl } = req.body;
+
+  if (!fileId || typeof fileId !== 'string') {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Valid fileId string is required.',
+    });
+  }
+
+  if (!downloadUrl || typeof downloadUrl !== 'string') {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'Valid downloadUrl string is required.',
+    });
+  }
+
+  next();
+}
+
+/**
+ * Validates batch operations payload.
+ */
+export function validateBatchOperation(req, res, next) {
+  const { action, documentIds } = req.body;
+
+  const validActions = ['archive', 'restore', 'move', 'tag', 'duplicate', 'delete_permanent'];
+
+  if (!action || !validActions.includes(action)) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: `Invalid action. Supported actions: ${validActions.join(', ')}.`,
+    });
+  }
+
+  if (!Array.isArray(documentIds) || documentIds.length === 0) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'documentIds must be a non-empty array of document IDs.',
+    });
+  }
+
+  next();
+}
+
+/**
+ * Validates deep AST search payload.
+ */
+export function validateAstSearch(req, res, next) {
+  const { workspaceId, query, nodeTypes } = req.body;
+
+  if (!workspaceId || typeof workspaceId !== 'string') {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'A valid workspaceId is required.',
+    });
+  }
+
+  if (nodeTypes !== undefined && !Array.isArray(nodeTypes)) {
+    return res.status(400).json({
+      error: 'Validation Error',
+      message: 'nodeTypes must be an array of node type strings if provided.',
     });
   }
 

@@ -1,6 +1,4 @@
-/**
- * Document Utilities: Text extraction, stats computation, and Markdown exporter.
- */
+import crypto from 'crypto';
 
 /**
  * Computes word count, character count, and estimated reading time from text.
@@ -42,6 +40,88 @@ export function calculateDocumentStats(text = '') {
     paragraphs,
     readingTimeMinutes,
   };
+}
+
+/**
+ * Ensures that every top-level node in the TipTap / ProseMirror AST contains a unique blockId.
+ * This is crucial for comment anchoring, real-time presence, and block-level diffing.
+ *
+ * @param {Object} documentAst - Document JSON AST
+ * @returns {Object} AST with guaranteed blockIds
+ */
+export function ensureBlockIdsInAst(documentAst) {
+  if (!documentAst || typeof documentAst !== 'object') {
+    return {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { blockId: `block_${crypto.randomUUID()}` },
+          content: [],
+        },
+      ],
+    };
+  }
+
+  if (!Array.isArray(documentAst.content)) {
+    return {
+      type: 'doc',
+      content: [],
+    };
+  }
+
+  const processedContent = documentAst.content.map((node) => {
+    if (!node || typeof node !== 'object') return node;
+    const attrs = { ...(node.attrs || {}) };
+    if (!attrs.blockId) {
+      attrs.blockId = `block_${crypto.randomUUID()}`;
+    }
+    return {
+      ...node,
+      attrs,
+    };
+  });
+
+  return {
+    ...documentAst,
+    content: processedContent,
+  };
+}
+
+/**
+ * Validates whether a specific blockId exists in a document AST.
+ *
+ * @param {Object} documentAst
+ * @param {string} blockId
+ * @returns {boolean}
+ */
+export function validateBlockIdExists(documentAst, blockId) {
+  if (!documentAst || !Array.isArray(documentAst.content) || !blockId) return false;
+
+  return documentAst.content.some((node) => node?.attrs?.blockId === blockId);
+}
+
+/**
+ * Extracts Table of Contents outline (H1-H6) from document AST.
+ *
+ * @param {Object} documentAst
+ * @returns {Array<{ level: number, text: string, blockId: string }>}
+ */
+export function extractHeadingsOutline(documentAst) {
+  if (!documentAst || !Array.isArray(documentAst.content)) return [];
+
+  const outline = [];
+
+  for (const node of documentAst.content) {
+    if (node && node.type === 'heading') {
+      const level = Math.min(6, Math.max(1, node.attrs?.level || 1));
+      const text = extractPlainTextFromAst(node).trim();
+      const blockId = node.attrs?.blockId || null;
+      outline.push({ level, text, blockId });
+    }
+  }
+
+  return outline;
 }
 
 /**
@@ -98,6 +178,11 @@ export function astToMarkdown(documentAst, documentTitle = '') {
         const text = renderChildren(node);
         return `\n> ${text.trim().replace(/\n/g, '\n> ')}\n`;
       }
+      case 'callout': {
+        const type = node.attrs?.type || 'info';
+        const text = renderChildren(node);
+        return `\n> [!${type.toUpperCase()}]\n> ${text.trim().replace(/\n/g, '\n> ')}\n`;
+      }
       case 'codeBlock': {
         const lang = node.attrs?.language || '';
         const code = renderChildren(node);
@@ -109,11 +194,20 @@ export function astToMarkdown(documentAst, documentTitle = '') {
       case 'orderedList': {
         return `\n${node.content?.map((item, i) => `${i + 1}. ${renderChildren(item).trim()}`).join('\n')}\n`;
       }
-      case 'listItem': {
+      case 'taskList': {
+        return `\n${node.content?.map((item) => `- [${item.attrs?.checked ? 'x' : ' '}] ${renderChildren(item).trim()}`).join('\n')}\n`;
+      }
+      case 'listItem':
+      case 'taskItem': {
         return renderChildren(node);
       }
       case 'horizontalRule': {
         return '\n---\n';
+      }
+      case 'fileAttachment': {
+        const filename = node.attrs?.filename || 'Attachment';
+        const url = node.attrs?.url || '#';
+        return `\n📎 [${filename}](${url})\n`;
       }
       case 'table': {
         if (!Array.isArray(node.content) || node.content.length === 0) return '';
