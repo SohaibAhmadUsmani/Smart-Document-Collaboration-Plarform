@@ -1,5 +1,11 @@
 import mongoose from 'mongoose';
 import { Notification } from '../models/Notification.js';
+import { AppError } from '../../workspaces/utils/AppError.js';
+
+const USER_POPULATE = {
+  path: 'sender',
+  select: 'name email',
+};
 
 /**
  * Create mention notifications for all mentioned users in a comment.
@@ -51,6 +57,104 @@ export async function createMentionNotifications({
   await Notification.insertMany(notifications, { ordered: false });
 }
 
+/**
+ * Get all notifications for a user, sorted newest first.
+ *
+ * @param {string} userId - The authenticated user's ID
+ * @returns {Promise<Array>} Notifications with populated sender
+ */
+export async function getUserNotifications(userId) {
+  const notifications = await Notification.find({ recipient: userId })
+    .populate(USER_POPULATE)
+    .sort({ createdAt: -1 })
+    .lean()
+    .exec();
+
+  return notifications;
+}
+
+/**
+ * Get unread notifications for a user, sorted newest first.
+ *
+ * @param {string} userId - The authenticated user's ID
+ * @returns {Promise<Array>} Unread notifications with populated sender
+ */
+export async function getUnreadNotifications(userId) {
+  const notifications = await Notification.find({ recipient: userId, read: false })
+    .populate(USER_POPULATE)
+    .sort({ createdAt: -1 })
+    .lean()
+    .exec();
+
+  return notifications;
+}
+
+/**
+ * Mark a single notification as read. Only the recipient can mark their own notification.
+ *
+ * @param {string} notificationId - The notification to update
+ * @param {string} userId - The authenticated user's ID
+ * @returns {Promise<Object>} Updated notification
+ * @throws {AppError} 404 if notification not found or not belonging to user
+ */
+export async function markNotificationAsRead(notificationId, userId) {
+  const notification = await Notification.findOneAndUpdate(
+    { _id: notificationId, recipient: userId },
+    { read: true },
+    { new: true }
+  )
+    .populate(USER_POPULATE)
+    .lean()
+    .exec();
+
+  if (!notification) {
+    throw new AppError('Notification not found', 404);
+  }
+
+  return notification;
+}
+
+/**
+ * Mark all unread notifications for a user as read.
+ *
+ * @param {string} userId - The authenticated user's ID
+ * @returns {Promise<Object>} Count of updated notifications
+ */
+export async function markAllNotificationsAsRead(userId) {
+  const result = await Notification.updateMany(
+    { recipient: userId, read: false },
+    { read: true }
+  ).exec();
+
+  return { modifiedCount: result.modifiedCount };
+}
+
+/**
+ * Delete a notification. Only the recipient can delete their own notification.
+ *
+ * @param {string} notificationId - The notification to delete
+ * @param {string} userId - The authenticated user's ID
+ * @returns {Promise<Object>} Deletion confirmation
+ * @throws {AppError} 404 if notification not found or not belonging to user
+ */
+export async function deleteNotification(notificationId, userId) {
+  const notification = await Notification.findOneAndDelete({
+    _id: notificationId,
+    recipient: userId,
+  }).exec();
+
+  if (!notification) {
+    throw new AppError('Notification not found', 404);
+  }
+
+  return { deleted: true };
+}
+
 export const notificationService = {
   createMentionNotifications,
+  getUserNotifications,
+  getUnreadNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
 };
