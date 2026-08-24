@@ -1,32 +1,56 @@
-import { sharingService } from '../services/sharingService.js';
-import { validateSharingVisibility } from '../validators/workspaceValidators.js';
+import { workspaceService } from '../services/workspaceService.js';
+import { validateWorkspaceInput } from '../validators/workspaceValidators.js';
 
-async function getSharing(req, res, next) {
+async function create(req, res, next) {
   try {
-    const sharing = await sharingService.getSharing(req.params.workspaceId);
-    res.json({ sharing });
+    const input = validateWorkspaceInput(req.body);
+    const workspace = await workspaceService.createWorkspace({
+      ...input,
+      ownerId: req.user.id,
+    });
+    res.status(201).json({ workspace });
   } catch (error) {
     next(error);
   }
 }
 
-async function updateSharing(req, res, next) {
+async function listMine(req, res, next) {
   try {
-    const visibility = validateSharingVisibility(req.body.visibility);
-    const sharing = await sharingService.updateSharing(req.params.workspaceId, { visibility });
-    res.json({ sharing });
+    const workspaces = await workspaceService.listUserWorkspaces(req.user.id);
+    res.json({ workspaces });
   } catch (error) {
     next(error);
   }
 }
 
-async function rotateShareLink(req, res, next) {
+async function getOne(req, res, next) {
   try {
-    const sharing = await sharingService.rotateShareLink(req.params.workspaceId);
-    res.json({ sharing });
+    const workspace = await workspaceService.getWorkspaceById(req.params.id);
+    res.json({ workspace, role: req.workspaceRole });
   } catch (error) {
     next(error);
   }
 }
 
-export const sharingController = { getSharing, updateSharing, rotateShareLink };
+async function update(req, res, next) {
+  try {
+    // Mass-assignment guard: only name/description are ever accepted here,
+    // regardless of what else is in the request body (e.g. owner, sharing).
+    const input = validateWorkspaceInput(req.body, { partial: true });
+    const workspace = await workspaceService.updateWorkspace(req.params.id, input);
+    res.json({ workspace });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function remove(req, res, next) {
+  try {
+    await workspaceService.deleteWorkspace(req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+}
+
+export const workspaceController = { create, listMine, getOne, update, remove };
