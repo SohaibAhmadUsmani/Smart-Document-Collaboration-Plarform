@@ -6,6 +6,11 @@ export async function connectDatabase() {
     throw new Error('DATABASE_URL is not set');
   }
 
-  await mongoose.connect(env.databaseUrl);
-  console.log(`Connected to MongoDB: ${mongoose.connection.host}`);
+  try {
+    await mongoose.connect(env.databaseUrl);
+    console.log(`Connected to MongoDB: ${mongoose.connection.host}`);
+  } catch (error) {
+    console.error('MongoDB connection error:', error.message);
+    process.exit(1);
+  }
 }
