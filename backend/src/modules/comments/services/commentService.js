@@ -2,6 +2,7 @@ import { Comment } from '../models/Comment.js';
 import { DocumentModel } from '../../documents/document.model.js';
 import { AppError } from '../../workspaces/utils/AppError.js';
 import { permissionService } from '../../workspaces/services/permissionService.js';
+import { notificationService } from '../../notifications/services/notificationService.js';
 
 const AUTHOR_POPULATE = {
   path: 'author',
@@ -95,6 +96,22 @@ export async function createComment({
   });
 
   const saved = await comment.save();
+
+  // Create mention notifications after comment is saved (non-blocking)
+  try {
+    const mentionIds = Array.isArray(mentions) ? mentions : [];
+    if (mentionIds.length > 0) {
+      await notificationService.createMentionNotifications({
+        commentId: saved._id,
+        senderId: userId,
+        mentionedUserIds: mentionIds,
+        documentId,
+        workspaceId: document.workspaceId,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to create mention notifications:', err);
+  }
 
   return saved.populate([AUTHOR_POPULATE, MENTIONS_POPULATE]);
 }
