@@ -1,132 +1,8 @@
-import crypto from 'crypto';
+import { extractNodeText } from './astWalker.js';
 
 /**
- * Computes word count, character count, and estimated reading time from text.
- * @param {string} text - Raw plain text of the document.
- * @returns {{ words: number, characters: number, charactersNoSpaces: number, paragraphs: number, readingTimeMinutes: number }}
- */
-export function calculateDocumentStats(text = '') {
-  if (!text || typeof text !== 'string') {
-    return {
-      words: 0,
-      characters: 0,
-      charactersNoSpaces: 0,
-      paragraphs: 0,
-      readingTimeMinutes: 0,
-    };
-  }
-
-  const trimmed = text.trim();
-  if (trimmed.length === 0) {
-    return {
-      words: 0,
-      characters: 0,
-      charactersNoSpaces: 0,
-      paragraphs: 0,
-      readingTimeMinutes: 0,
-    };
-  }
-
-  const words = trimmed.split(/\s+/).filter(Boolean).length;
-  const characters = text.length;
-  const charactersNoSpaces = text.replace(/\s/g, '').length;
-  const paragraphs = text.split(/\n+/).filter((p) => p.trim().length > 0).length;
-  const readingTimeMinutes = Math.max(1, Math.ceil(words / 200));
-
-  return {
-    words,
-    characters,
-    charactersNoSpaces,
-    paragraphs,
-    readingTimeMinutes,
-  };
-}
-
-/**
- * Ensures that every top-level node in the TipTap / ProseMirror AST contains a unique blockId.
- * This is crucial for comment anchoring, real-time presence, and block-level diffing.
- *
- * @param {Object} documentAst - Document JSON AST
- * @returns {Object} AST with guaranteed blockIds
- */
-export function ensureBlockIdsInAst(documentAst) {
-  if (!documentAst || typeof documentAst !== 'object') {
-    return {
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          attrs: { blockId: `block_${crypto.randomUUID()}` },
-          content: [],
-        },
-      ],
-    };
-  }
-
-  if (!Array.isArray(documentAst.content)) {
-    return {
-      type: 'doc',
-      content: [],
-    };
-  }
-
-  const processedContent = documentAst.content.map((node) => {
-    if (!node || typeof node !== 'object') return node;
-    const attrs = { ...(node.attrs || {}) };
-    if (!attrs.blockId) {
-      attrs.blockId = `block_${crypto.randomUUID()}`;
-    }
-    return {
-      ...node,
-      attrs,
-    };
-  });
-
-  return {
-    ...documentAst,
-    content: processedContent,
-  };
-}
-
-/**
- * Validates whether a specific blockId exists in a document AST.
- *
- * @param {Object} documentAst
- * @param {string} blockId
- * @returns {boolean}
- */
-export function validateBlockIdExists(documentAst, blockId) {
-  if (!documentAst || !Array.isArray(documentAst.content) || !blockId) return false;
-
-  return documentAst.content.some((node) => node?.attrs?.blockId === blockId);
-}
-
-/**
- * Extracts Table of Contents outline (H1-H6) from document AST.
- *
- * @param {Object} documentAst
- * @returns {Array<{ level: number, text: string, blockId: string }>}
- */
-export function extractHeadingsOutline(documentAst) {
-  if (!documentAst || !Array.isArray(documentAst.content)) return [];
-
-  const outline = [];
-
-  for (const node of documentAst.content) {
-    if (node && node.type === 'heading') {
-      const level = Math.min(6, Math.max(1, node.attrs?.level || 1));
-      const text = extractPlainTextFromAst(node).trim();
-      const blockId = node.attrs?.blockId || null;
-      outline.push({ level, text, blockId });
-    }
-  }
-
-  return outline;
-}
-
-/**
- * Recursively extracts plain text from a TipTap/ProseMirror AST node.
- * @param {Object} node - AST Node
+ * Recursively extracts plain text from a TipTap/ProseMirror AST node or document.
+ * @param {Object} node - AST Node or root document
  * @returns {string}
  */
 export function extractPlainTextFromAst(node) {
@@ -137,17 +13,18 @@ export function extractPlainTextFromAst(node) {
   }
 
   if (Array.isArray(node.content)) {
-    return node.content.map(extractPlainTextFromAst).join('');
+    return node.content.map(extractPlainTextFromAst).join('\n');
   }
 
   return '';
 }
 
 /**
- * Converts a structured document AST JSON tree into clean Markdown format.
- * @param {Object} documentAst - TipTap / ProseMirror AST representation.
- * @param {string} [documentTitle] - Optional title to prepend as H1.
- * @returns {string} Markdown text.
+ * Converts a structured document AST JSON tree into clean Markdown text.
+ *
+ * @param {Object} documentAst
+ * @param {string} [documentTitle='']
+ * @returns {string}
  */
 export function astToMarkdown(documentAst, documentTitle = '') {
   const lines = [];
