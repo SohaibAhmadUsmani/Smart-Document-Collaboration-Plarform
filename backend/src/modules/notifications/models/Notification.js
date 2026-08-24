@@ -2,13 +2,11 @@ import mongoose from 'mongoose';
 
 const notificationSchema = new mongoose.Schema(
   {
-    // TODO: reference User model (auth module)
     recipient: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
-    // TODO: reference User model — who triggered the notification
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -26,11 +24,20 @@ const notificationSchema = new mongoose.Schema(
       ],
       required: true,
     },
-    // TODO: reference Document model (documents module)
     document: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Document',
       default: null,
+    },
+    comment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Comment',
+      default: null,
+    },
+    workspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+      required: true,
     },
     read: {
       type: Boolean,
@@ -39,5 +46,8 @@ const notificationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+notificationSchema.index({ recipient: 1, read: 1, createdAt: -1 });
+notificationSchema.index({ document: 1, createdAt: -1 });
 
 export const Notification = mongoose.model('Notification', notificationSchema);
