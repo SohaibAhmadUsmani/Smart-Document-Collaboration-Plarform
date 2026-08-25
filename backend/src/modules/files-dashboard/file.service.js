@@ -1,5 +1,6 @@
 import { FileModel } from './file.model.js';
 import { buildDownloadUrl, deleteFromDisk } from './file.storage.js';
+import { logActivity } from './activityLog.service.js';
 
 export async function createFileRecord({ multerFile, workspaceId, folderId, documentId, userId }) {
   const file = await FileModel.create({
@@ -14,6 +15,16 @@ export async function createFileRecord({ multerFile, workspaceId, folderId, docu
     documentId: documentId || null,
     uploadedBy: userId,
   });
+
+  await logActivity({
+    action: 'file.uploaded',
+    entityId: file._id.toString(),
+    entityName: file.fileName,
+    workspaceId,
+    userId,
+    metadata: { fileSize: file.fileSize, mimeType: file.mimeType },
+  });
+
   return file;
 }
 
@@ -29,28 +40,63 @@ export async function getFileById(fileId) {
   return FileModel.findOne({ _id: fileId, isDeleted: false }).exec();
 }
 
-export async function renameFile(fileId, newName) {
+export async function renameFile(fileId, newName, userId) {
   const file = await FileModel.findOne({ _id: fileId, isDeleted: false }).exec();
   if (!file) return null;
+
+  const oldName = file.fileName;
   file.fileName = newName;
   await file.save();
+
+  await logActivity({
+    action: 'file.renamed',
+    entityId: file._id.toString(),
+    entityName: file.fileName,
+    workspaceId: file.workspaceId,
+    userId,
+    metadata: { oldName, newName },
+  });
+
   return file;
 }
 
-export async function moveFile(fileId, targetFolderId) {
+export async function moveFile(fileId, targetFolderId, userId) {
   const file = await FileModel.findOne({ _id: fileId, isDeleted: false }).exec();
   if (!file) return null;
+
+  const oldFolderId = file.folderId;
   file.folderId = targetFolderId || null;
   await file.save();
+
+  await logActivity({
+    action: 'file.moved',
+    entityId: file._id.toString(),
+    entityName: file.fileName,
+    workspaceId: file.workspaceId,
+    userId,
+    metadata: { oldFolderId, newFolderId: file.folderId },
+  });
+
   return file;
 }
 
-export async function softDeleteFile(fileId) {
+export async function softDeleteFile(fileId, userId) {
   const file = await FileModel.findOne({ _id: fileId, isDeleted: false }).exec();
   if (!file) return null;
+
   file.isDeleted = true;
   file.deletedAt = new Date();
   await file.save();
+
+  await logActivity({
+    action: 'file.deleted',
+    entityId: file._id.toString(),
+    entityName: file.fileName,
+    workspaceId: file.workspaceId,
+    userId,
+    metadata: {},
+  });
+
   return file;
 }
 

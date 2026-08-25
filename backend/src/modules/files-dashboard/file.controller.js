@@ -1,4 +1,5 @@
 import * as fileService from './file.service.js';
+import * as activityLogService from './activityLog.service.js';
 import { resolveStoragePath } from './file.storage.js';
 import fs from 'fs';
 
@@ -94,7 +95,8 @@ export async function renameFileHandler(req, res, next) {
       });
     }
 
-    const file = await fileService.renameFile(id, fileName);
+    const userId = getUserId(req);
+    const file = await fileService.renameFile(id, fileName, userId);
     if (!file) {
       return res.status(404).json({
         success: false,
@@ -114,7 +116,8 @@ export async function moveFileHandler(req, res, next) {
     const { id } = req.params;
     const { folderId } = req.body;
 
-    const file = await fileService.moveFile(id, folderId);
+    const userId = getUserId(req);
+    const file = await fileService.moveFile(id, folderId, userId);
     if (!file) {
       return res.status(404).json({
         success: false,
@@ -132,7 +135,8 @@ export async function moveFileHandler(req, res, next) {
 export async function deleteFileHandler(req, res, next) {
   try {
     const { id } = req.params;
-    const file = await fileService.softDeleteFile(id);
+    const userId = getUserId(req);
+    const file = await fileService.softDeleteFile(id, userId);
     if (!file) {
       return res.status(404).json({
         success: false,
@@ -142,6 +146,24 @@ export async function deleteFileHandler(req, res, next) {
     }
 
     return res.status(200).json({ success: true, message: 'File deleted' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getRecentActivityHandler(req, res, next) {
+  try {
+    const { workspaceId, limit } = req.query;
+    if (!workspaceId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'workspaceId query parameter is required.',
+      });
+    }
+
+    const activity = await activityLogService.getRecentActivity({ workspaceId, limit });
+    return res.status(200).json({ success: true, data: activity });
   } catch (error) {
     next(error);
   }

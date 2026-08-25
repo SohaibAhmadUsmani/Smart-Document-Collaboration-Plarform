@@ -5,7 +5,7 @@ import * as controller from './file.controller.js';
 
 export const fileRouter = Router();
 
-// GET /api/files/download/:storageKey - Download a file (public path, no auth prefix issue)
+// GET /api/files/download/:storageKey - Download a file
 fileRouter.get('/download/:storageKey', controller.downloadFileHandler);
 
 fileRouter.use(requireAuth);
@@ -15,6 +15,9 @@ fileRouter.post('/upload', upload.single('file'), controller.uploadFileHandler);
 
 // GET /api/files - List files for a workspace/folder
 fileRouter.get('/', controller.listFilesHandler);
+
+// GET /api/files/activity - Recent activity feed for a workspace
+fileRouter.get('/activity', controller.getRecentActivityHandler);
 
 // PUT /api/files/:id/rename - Rename a file
 fileRouter.put('/:id/rename', controller.renameFileHandler);
