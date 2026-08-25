@@ -7,7 +7,7 @@ export const initialEditorState = {
   title: 'Untitled Document',
   icon: null,
   coverImage: null,
-  content: DEFAULT_DOCUMENT_AST,
+  content: null,
   plainText: '',
   tags: [],
   isFavorite: false,

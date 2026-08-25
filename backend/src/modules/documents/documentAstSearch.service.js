@@ -1,5 +1,9 @@
 import { DocumentModel } from './document.model.js';
 
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Searches across document ProseMirror / TipTap AST structures within a workspace.
  *
@@ -21,11 +25,15 @@ export async function searchContentAst(workspaceId, criteria = {}) {
 
   const documents = await DocumentModel.find(mongoQuery)
     .select('id title icon folderId content updatedAt tags')
+    .limit(limit * 2)
     .lean()
     .exec();
 
   const results = [];
-  const regex = query && typeof query === 'string' && query.trim() ? new RegExp(query.trim(), 'i') : null;
+  const regex =
+    query && typeof query === 'string' && query.trim()
+      ? new RegExp(escapeRegex(query.trim()), 'i')
+      : null;
 
   for (const doc of documents) {
     const matches = [];
@@ -38,7 +46,7 @@ export async function searchContentAst(workspaceId, criteria = {}) {
       // Check regex text match
       if (regex) {
         const textContent = extractNodeText(node);
-        if (regex.test(textContent)) {
+        if (textContent && regex.test(textContent)) {
           matches.push({
             nodeType: node.type,
             attrs: node.attrs || {},
@@ -58,14 +66,14 @@ export async function searchContentAst(workspaceId, criteria = {}) {
 
     if (matches.length > 0) {
       results.push({
-        documentId: doc._id,
+        documentId: doc._id.toString(),
         title: doc.title,
         icon: doc.icon,
         folderId: doc.folderId,
         tags: doc.tags,
-        updatedAt: doc.updatedAt,
         matchCount: matches.length,
-        matches: matches.slice(0, 5), // Return top 5 matching blocks
+        matches: matches.slice(0, 5),
+        updatedAt: doc.updatedAt,
       });
     }
 
@@ -75,28 +83,37 @@ export async function searchContentAst(workspaceId, criteria = {}) {
   return results;
 }
 
-function traverseAst(node, visitor, currentPath = ['root']) {
+function traverseAst(node, callback, currentPath = []) {
   if (!node || typeof node !== 'object') return;
-  visitor(node, currentPath);
+
+  callback(node, currentPath);
 
   if (Array.isArray(node.content)) {
     node.content.forEach((child, index) => {
-      traverseAst(child, visitor, [...currentPath, `content[${index}]`]);
+      traverseAst(child, callback, [...currentPath, `content[${index}]`]);
     });
   }
 }
 
 function extractNodeText(node) {
   if (!node) return '';
-  if (node.type === 'text') return node.text || '';
-  if (Array.isArray(node.content)) return node.content.map(extractNodeText).join(' ');
+  if (node.type === 'text' && typeof node.text === 'string') {
+    return node.text;
+  }
+  if (Array.isArray(node.content)) {
+    return node.content.map(extractNodeText).join(' ');
+  }
   return '';
 }
 
-function getMatchedSnippet(text, regex, windowSize = 80) {
+function getMatchedSnippet(text, regex, radius = 40) {
   const match = regex.exec(text);
-  if (!match) return text.slice(0, windowSize);
-  const start = Math.max(0, match.index - windowSize / 2);
-  const end = Math.min(text.length, match.index + match[0].length + windowSize / 2);
-  return (start > 0 ? '...' : '') + text.slice(start, end).trim() + (end < text.length ? '...' : '');
+  if (!match) return text.slice(0, radius * 2);
+
+  const start = Math.max(0, match.index - radius);
+  const end = Math.min(text.length, match.index + match[0].length + radius);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < text.length ? '...' : '';
+
+  return `${prefix}${text.slice(start, end)}${suffix}`;
 }
