@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth } from '../../../middleware/auth.js';
 import * as controller from '../controllers/notificationController.js';
 import { validateNotificationId } from '../notification.validation.js';
 
