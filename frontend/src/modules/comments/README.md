@@ -26,15 +26,60 @@ comments/
 - `apiResolveComment(commentId)` — PATCH /api/comments/:commentId/resolve
 - `apiDeleteComment(commentId)` — DELETE /api/comments/:commentId
 
+## Hook: useComments
+
+`hooks/useComments.js` manages comment state for a document.
+
+```js
+const {
+  comments,           // All comments for the document
+  topLevelComments,   // Comments where parentComment is null
+  getReplies,         // (commentId) => Comment[] — get replies for a thread
+
+  isLoading,          // Fetching comments
+  isCreating,         // Creating a comment or reply
+  resolvingCommentId, // ID of comment currently being resolved (or null)
+  deletingCommentId,  // ID of comment currently being deleted (or null)
+  error,              // Last error message (or null)
+
+  fetchComments,      // () => Promise<void>
+  refreshComments,    // () => Promise<void>
+  createComment,      // (payload) => Promise<Comment|null>
+  replyToComment,     // (commentId, payload) => Promise<Comment|null>
+  resolveComment,     // (commentId) => Promise<Comment|null>
+  deleteComment,      // (commentId) => Promise<boolean>
+} = useComments(documentId);
+```
+
+### createComment payload shape
+
+```js
+{
+  documentId,        // required
+  body,              // required
+  anchorType,        // required: 'text_selection' | 'block_node'
+  from,              // required
+  to,                // required
+  exactQuote,        // optional
+  prefixContext,     // optional
+  suffixContext,     // optional
+  blockId,           // optional
+  mentions,          // optional: string[]
+  parentComment,     // optional: parent comment ID
+}
+```
+
 ## Integration with Editor
 
-The editor module already provides:
-- `CommentMark` — ProseMirror mark for comment highlights
-- `useCommentAnchors` — Hook for anchor creation and mark injection
-- `commentAnchor.js` — Types and helper for anchor payloads
-- `fuzzyAnchorMatcher.js` — Utility for resolving shifted anchor positions
+The editor module provides `useCommentAnchors(editorInstance)` which handles:
+- `captureSelectionAnchor()` — captures the current selection as anchor data
+- `attachCommentMark(threadId)` — applies a CommentMark to the editor
+- `resolveAnchor(anchor)` — fuzzy position resolution
 
-This module will consume those editor primitives and connect them to the backend API.
+The Comments hook does NOT manage anchor state. The UI layer composes both:
+1. Use `useCommentAnchors` to capture anchor data from the editor
+2. Pass that anchor data into `createComment` payload
+3. After creation, use the returned comment `_id` with `attachCommentMark`
 
 ## Backend
 
