@@ -1,9 +1,17 @@
 /**
- * Document Editor Module Public API
+ * Document Editor Module Public API (DocSync Pro)
  */
 
-// Components
+// Core High-Fidelity Components
 export { EditorCanvas } from './components/EditorCanvas.jsx';
+export { TopGlobalHeader } from './components/TopGlobalHeader.jsx';
+export { DocSubHeader } from './components/DocSubHeader.jsx';
+export { FormattingToolbar } from './components/FormattingToolbar.jsx';
+export { PaperDocumentSheet } from './components/PaperDocumentSheet.jsx';
+export { CollaborationSidebar } from './components/CollaborationSidebar.jsx';
+export { BottomStatusBar } from './components/BottomStatusBar.jsx';
+
+// Supporting Components
 export { EditorHeader } from './components/EditorHeader.jsx';
 export { EditorToolbar } from './components/EditorToolbar.jsx';
 export { EditorActions } from './components/EditorActions.jsx';
@@ -35,12 +43,14 @@ export { AttachmentNode } from './extensions/nodes/AttachmentNode.js';
 export { CodeBlockNode } from './extensions/nodes/CodeBlockNode.js';
 export { MentionNode } from './extensions/nodes/MentionNode.js';
 
-// Utilities
+// Utilities & Motion Tokens
 export { astToMarkdown } from './utils/astConverters.js';
 export { extractHeadingsOutline, findNodesByType, extractNodeText } from './utils/astWalker.js';
 export { resolveCommentAnchorPosition } from './utils/fuzzyAnchorMatcher.js';
+export * from './utils/motionVariants.js';
 
-// Types & API Client
+// Types & Mock/API Services
 export * from './types/document.js';
 export * from './types/commentAnchor.js';
 export * from './services/documentApi.js';
+export * from './services/mockData.js';
