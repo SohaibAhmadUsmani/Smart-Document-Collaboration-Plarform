@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, requireRole } from '../../../middleware/auth.js';
 import * as controller from '../controllers/commentController.js';
 
 export const commentRouter = Router();

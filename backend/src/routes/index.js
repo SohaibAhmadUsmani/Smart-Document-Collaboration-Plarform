@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authRouter } from '../modules/auth/auth.routes.js';
 import { documentRouter } from '../modules/documents/document.routes.js';
 import { workspaceRouter, folderRouter } from '../modules/workspaces/routes/workspaceRoutes.js';
 import { commentRouter } from '../modules/comments/routes/commentRoutes.js';
@@ -6,6 +7,7 @@ import { notificationRouter } from '../modules/notifications/routes/notification
 
 export const apiRouter = Router();
 
+apiRouter.use('/auth', authRouter);
 apiRouter.use('/documents', documentRouter);
 apiRouter.use('/workspaces', workspaceRouter);
 apiRouter.use('/folders', folderRouter);
