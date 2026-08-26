@@ -3,34 +3,59 @@ import { apiAutosaveDocument } from '../services/documentApi.js';
 import { SAVE_STATUS, AUTOSAVE_DEFAULT_DEBOUNCE_MS } from '../types/document.js';
 
 /**
- * Custom React hook for debounced real-time autosaving of document content.
- *
- * @param {Object} params
- * @param {string} params.documentId - The ID of the document being edited.
- * @param {Object} params.content - Current document AST JSON.
- * @param {string} [params.plainText] - Optional plain text representation for search.
- * @param {boolean} [params.enabled=true] - Whether autosave is active (e.g., false for read-only).
- * @param {number} [params.debounceMs=1500] - Milliseconds of inactivity before triggering save.
- * @returns {{ status: string, lastSavedAt: Date|null, error: string|null, saveNow: Function }}
+ * Custom React hook for debounced real-time autosaving of document content
+ * with offline localStorage queue and 409 conflict detection.
  */
 export function useAutosave({
   documentId,
   content,
   plainText = '',
+  currentVersion = 1,
   enabled = true,
   debounceMs = AUTOSAVE_DEFAULT_DEBOUNCE_MS,
+  onConflictDetected = null,
 }) {
   const [status, setStatus] = useState(SAVE_STATUS.IDLE);
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [error, setError] = useState(null);
+  const [isOfflineQueued, setIsOfflineQueued] = useState(false);
 
   const timeoutRef = useRef(null);
   const isFirstRender = useRef(true);
   const lastSavedContentRef = useRef(null);
 
+  const QUEUE_KEY = `docsync_offline_queue_${documentId}`;
+
+  // Helper: Persist uncommitted changes to localStorage
+  const saveToLocalQueue = useCallback((data) => {
+    try {
+      localStorage.setItem(
+        QUEUE_KEY,
+        JSON.stringify({
+          documentId,
+          content: data.content,
+          plainText: data.plainText,
+          version: currentVersion,
+          queuedAt: Date.now(),
+        })
+      );
+      setIsOfflineQueued(true);
+      setStatus(SAVE_STATUS.OFFLINE_SAVED);
+    } catch (e) {
+      console.error('[LocalStorage Queue Error]:', e);
+    }
+  }, [QUEUE_KEY, documentId, currentVersion]);
+
+  // Server Save Execution Engine
   const performSave = useCallback(
     async (contentToSave, textToSave) => {
       if (!documentId || !enabled) return;
+
+      // If browser is offline, buffer locally and return
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        saveToLocalQueue({ content: contentToSave, plainText: textToSave });
+        return;
+      }
 
       try {
         setStatus(SAVE_STATUS.SAVING);
@@ -39,23 +64,56 @@ export function useAutosave({
         const result = await apiAutosaveDocument(documentId, {
           content: contentToSave,
           plainText: textToSave,
+          baseVersion: currentVersion,
         });
 
         lastSavedContentRef.current = JSON.stringify(contentToSave);
-        setLastSavedAt(new Date(result.updatedAt || Date.now()));
+        setLastSavedAt(new Date(result?.updatedAt || Date.now()));
         setStatus(SAVE_STATUS.SAVED);
+        setIsOfflineQueued(false);
+        try {
+          localStorage.removeItem(QUEUE_KEY);
+        } catch (e) {}
       } catch (err) {
-        console.error('[Autosave Error]:', err);
-        setError(err.message || 'Failed to save document');
-        setStatus(SAVE_STATUS.ERROR);
+        if (err.status === 409 || err.code === 'VERSION_CONFLICT') {
+          setStatus(SAVE_STATUS.CONFLICT);
+          setError('Version conflict detected: Another collaborator saved newer changes.');
+          if (onConflictDetected) {
+            onConflictDetected({
+              localContent: contentToSave,
+              serverDocument: err.serverDocument,
+            });
+          }
+        } else {
+          // Network or server error -> save locally as fallback
+          saveToLocalQueue({ content: contentToSave, plainText: textToSave });
+          setError(err.message || 'Saved locally (offline mode)');
+        }
       }
     },
-    [documentId, enabled]
+    [documentId, enabled, currentVersion, saveToLocalQueue, onConflictDetected, QUEUE_KEY]
   );
+
+  // Auto-sync listener on window reconnect
+  useEffect(() => {
+    const handleOnline = () => {
+      try {
+        const queued = localStorage.getItem(QUEUE_KEY);
+        if (queued) {
+          const parsed = JSON.parse(queued);
+          performSave(parsed.content, parsed.plainText);
+        }
+      } catch (e) {
+        localStorage.removeItem(QUEUE_KEY);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [performSave, QUEUE_KEY]);
 
   // Trigger debounced save when content changes
   useEffect(() => {
-    // Skip initial mount to prevent immediate duplicate save
     if (isFirstRender.current) {
       isFirstRender.current = false;
       lastSavedContentRef.current = JSON.stringify(content);
@@ -98,6 +156,8 @@ export function useAutosave({
     status,
     lastSavedAt,
     error,
+    isOfflineQueued,
     saveNow,
   };
 }
+

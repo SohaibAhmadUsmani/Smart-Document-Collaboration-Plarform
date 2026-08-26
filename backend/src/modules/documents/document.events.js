@@ -8,6 +8,7 @@ export const DOCUMENT_EVENTS = {
   CREATED: 'document.created',
   METADATA_UPDATED: 'document.metadata_updated',
   CONTENT_SAVED: 'document.content_saved',
+  SNAPSHOT_CHECKPOINT_CREATED: 'document.snapshot_checkpoint_created',
   DUPLICATED: 'document.duplicated',
   ARCHIVED: 'document.archived',
   RESTORED: 'document.restored',
@@ -17,6 +18,7 @@ export const DOCUMENT_EVENTS = {
   ATTACHMENT_LINKED: 'document.attachment_linked',
   ATTACHMENT_UNLINKED: 'document.attachment_unlinked',
 };
+
 
 /**
  * Emits a structured document domain lifecycle event asynchronously.
