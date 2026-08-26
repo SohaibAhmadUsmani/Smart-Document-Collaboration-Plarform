@@ -1,4 +1,14 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Automatically load .env from project root, backend root, or current directory
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config();
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -8,4 +18,5 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-key-smart-doc-collaboration-2026',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d'
 };
+
 
