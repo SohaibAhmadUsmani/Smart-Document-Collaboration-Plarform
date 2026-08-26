@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Comment } from '../models/Comment.js';
 import { DocumentModel } from '../../documents/document.model.js';
 import { AppError } from '../../workspaces/utils/AppError.js';
@@ -14,7 +15,56 @@ const MENTIONS_POPULATE = {
   select: 'name email',
 };
 
+const VALID_ANCHOR_TYPES = ['text_selection', 'block_node'];
+
+/**
+ * Validates that a value is a valid MongoDB ObjectId.
+ */
+function isValidObjectId(value) {
+  return typeof value === 'string' && mongoose.isValidObjectId(value);
+}
+
+/**
+ * Sanitize and deduplicate mentions array.
+ * - Removes duplicates
+ * - Removes the comment author from mentions (no self-notifications)
+ */
+function sanitizeMentions(mentions, authorId) {
+  if (!Array.isArray(mentions)) {
+    return [];
+  }
+
+  const unique = [...new Set(mentions.map((id) => String(id)))];
+  return unique.filter((id) => id !== String(authorId));
+}
+
+/**
+ * Validate core comment fields at the service level.
+ * Middleware handles route-level checks; this is a safety net.
+ */
+function validateCommentFields({ body, anchorType, from, to }) {
+  if (!body || typeof body !== 'string' || !body.trim()) {
+    throw new AppError('Comment body is required and cannot be empty', 400);
+  }
+
+  if (!anchorType || !VALID_ANCHOR_TYPES.includes(anchorType)) {
+    throw new AppError(`anchorType must be one of: ${VALID_ANCHOR_TYPES.join(', ')}`, 400);
+  }
+
+  if (typeof from !== 'number' || Number.isNaN(from) || from < 0) {
+    throw new AppError('from must be a non-negative number', 400);
+  }
+
+  if (typeof to !== 'number' || Number.isNaN(to) || to < from) {
+    throw new AppError('to must be a number greater than or equal to from', 400);
+  }
+}
+
 async function findDocumentOrThrow(documentId) {
+  if (!isValidObjectId(documentId)) {
+    throw new AppError('Invalid document ID format', 400);
+  }
+
   const document = await DocumentModel.findOne({ _id: documentId, isArchived: false })
     .select('workspaceId createdBy')
     .lean()
@@ -66,10 +116,20 @@ export async function createComment({
   mentions,
   parentComment,
 }) {
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const document = await findDocumentOrThrow(documentId);
   await assertCommentPermission(userId, document);
 
+  validateCommentFields({ body, anchorType, from, to });
+
   if (parentComment) {
+    if (!isValidObjectId(parentComment)) {
+      throw new AppError('Invalid parent comment ID format', 400);
+    }
+
     const parent = await Comment.findOne({ _id: parentComment, document: documentId })
       .select('_id')
       .lean()
@@ -80,10 +140,12 @@ export async function createComment({
     }
   }
 
+  const cleanMentions = sanitizeMentions(mentions, userId);
+
   const comment = new Comment({
     author: userId,
     document: documentId,
-    body,
+    body: body.trim(),
     anchorType,
     from,
     to,
@@ -91,32 +153,35 @@ export async function createComment({
     prefixContext: prefixContext || '',
     suffixContext: suffixContext || '',
     blockId: blockId || null,
-    mentions: Array.isArray(mentions) ? mentions : [],
+    mentions: cleanMentions,
     parentComment: parentComment || null,
   });
 
   const saved = await comment.save();
 
   // Create mention notifications after comment is saved (non-blocking)
-  try {
-    const mentionIds = Array.isArray(mentions) ? mentions : [];
-    if (mentionIds.length > 0) {
+  if (cleanMentions.length > 0) {
+    try {
       await notificationService.createMentionNotifications({
         commentId: saved._id,
         senderId: userId,
-        mentionedUserIds: mentionIds,
+        mentionedUserIds: cleanMentions,
         documentId,
         workspaceId: document.workspaceId,
       });
+    } catch (err) {
+      console.error('Failed to create mention notifications:', err);
     }
-  } catch (err) {
-    console.error('Failed to create mention notifications:', err);
   }
 
   return saved.populate([AUTHOR_POPULATE, MENTIONS_POPULATE]);
 }
 
 export async function getDocumentComments(documentId) {
+  if (!isValidObjectId(documentId)) {
+    throw new AppError('Invalid document ID format', 400);
+  }
+
   await findDocumentOrThrow(documentId);
 
   const comments = await Comment.find({ document: documentId })
@@ -130,6 +195,10 @@ export async function getDocumentComments(documentId) {
 }
 
 export async function getCommentById(commentId) {
+  if (!isValidObjectId(commentId)) {
+    throw new AppError('Invalid comment ID format', 400);
+  }
+
   const comment = await Comment.findById(commentId)
     .populate(AUTHOR_POPULATE)
     .populate(MENTIONS_POPULATE)
@@ -157,6 +226,14 @@ export async function replyToComment({
   blockId,
   mentions,
 }) {
+  if (!isValidObjectId(commentId)) {
+    throw new AppError('Invalid comment ID format', 400);
+  }
+
+  if (!isValidObjectId(documentId)) {
+    throw new AppError('Invalid document ID format', 400);
+  }
+
   const parent = await Comment.findOne({ _id: commentId, document: documentId })
     .select('_id')
     .lean()
@@ -183,8 +260,16 @@ export async function replyToComment({
 }
 
 export async function resolveComment({ commentId, userId }) {
+  if (!isValidObjectId(commentId)) {
+    throw new AppError('Invalid comment ID format', 400);
+  }
+
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const comment = await Comment.findById(commentId)
-    .select('document author')
+    .select('document author resolved')
     .exec();
 
   if (!comment) {
@@ -198,6 +283,11 @@ export async function resolveComment({ commentId, userId }) {
     await assertManagePermission(userId, document);
   }
 
+  // Idempotent: if already resolved, return current state
+  if (comment.resolved) {
+    return comment.populate([AUTHOR_POPULATE, MENTIONS_POPULATE]);
+  }
+
   comment.resolved = true;
   const saved = await comment.save();
 
@@ -205,6 +295,14 @@ export async function resolveComment({ commentId, userId }) {
 }
 
 export async function deleteComment({ commentId, userId }) {
+  if (!isValidObjectId(commentId)) {
+    throw new AppError('Invalid comment ID format', 400);
+  }
+
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const comment = await Comment.findById(commentId)
     .select('document author')
     .exec();

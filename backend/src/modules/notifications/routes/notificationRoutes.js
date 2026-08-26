@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../../../middleware/auth.js';
+import { requireAuth } from '../../../middleware/auth.js';
 import * as controller from '../controllers/notificationController.js';
+import { validateNotificationId } from '../notification.validation.js';
 
 export const notificationRouter = Router();
 
@@ -17,7 +18,7 @@ notificationRouter.get('/unread', controller.getUnreadNotificationsHandler);
 notificationRouter.patch('/read-all', controller.markAllNotificationsAsReadHandler);
 
 // PATCH /notifications/:notificationId/read - Mark a single notification as read
-notificationRouter.patch('/:notificationId/read', controller.markNotificationAsReadHandler);
+notificationRouter.patch('/:notificationId/read', validateNotificationId, controller.markNotificationAsReadHandler);
 
 // DELETE /notifications/:notificationId - Delete a notification
-notificationRouter.delete('/:notificationId', controller.deleteNotificationHandler);
+notificationRouter.delete('/:notificationId', validateNotificationId, controller.deleteNotificationHandler);

@@ -8,6 +8,13 @@ const USER_POPULATE = {
 };
 
 /**
+ * Validates that a value is a valid MongoDB ObjectId.
+ */
+function isValidObjectId(value) {
+  return typeof value === 'string' && mongoose.isValidObjectId(value);
+}
+
+/**
  * Create mention notifications for all mentioned users in a comment.
  *
  * @param {Object} params
@@ -41,6 +48,15 @@ export async function createMentionNotifications({
     return;
   }
 
+  // Validate all IDs before proceeding
+  if (!isValidObjectId(commentId) || !isValidObjectId(senderId) || !isValidObjectId(documentId)) {
+    throw new AppError('Invalid ID provided for notification creation', 400);
+  }
+
+  if (!workspaceId || !isValidObjectId(String(workspaceId))) {
+    throw new AppError('Invalid workspace ID provided for notification creation', 400);
+  }
+
   // Convert workspaceId string to ObjectId for the Notification schema
   const workspaceObjectId = new mongoose.Types.ObjectId(workspaceId);
 
@@ -64,6 +80,10 @@ export async function createMentionNotifications({
  * @returns {Promise<Array>} Notifications with populated sender
  */
 export async function getUserNotifications(userId) {
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const notifications = await Notification.find({ recipient: userId })
     .populate(USER_POPULATE)
     .sort({ createdAt: -1 })
@@ -80,6 +100,10 @@ export async function getUserNotifications(userId) {
  * @returns {Promise<Array>} Unread notifications with populated sender
  */
 export async function getUnreadNotifications(userId) {
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const notifications = await Notification.find({ recipient: userId, read: false })
     .populate(USER_POPULATE)
     .sort({ createdAt: -1 })
@@ -91,6 +115,7 @@ export async function getUnreadNotifications(userId) {
 
 /**
  * Mark a single notification as read. Only the recipient can mark their own notification.
+ * Idempotent: if already read, returns the notification without error.
  *
  * @param {string} notificationId - The notification to update
  * @param {string} userId - The authenticated user's ID
@@ -98,6 +123,14 @@ export async function getUnreadNotifications(userId) {
  * @throws {AppError} 404 if notification not found or not belonging to user
  */
 export async function markNotificationAsRead(notificationId, userId) {
+  if (!isValidObjectId(notificationId)) {
+    throw new AppError('Invalid notification ID format', 400);
+  }
+
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const notification = await Notification.findOneAndUpdate(
     { _id: notificationId, recipient: userId },
     { read: true },
@@ -116,11 +149,16 @@ export async function markNotificationAsRead(notificationId, userId) {
 
 /**
  * Mark all unread notifications for a user as read.
+ * Safely handles zero unread notifications (returns modifiedCount: 0).
  *
  * @param {string} userId - The authenticated user's ID
  * @returns {Promise<Object>} Count of updated notifications
  */
 export async function markAllNotificationsAsRead(userId) {
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const result = await Notification.updateMany(
     { recipient: userId, read: false },
     { read: true }
@@ -138,6 +176,14 @@ export async function markAllNotificationsAsRead(userId) {
  * @throws {AppError} 404 if notification not found or not belonging to user
  */
 export async function deleteNotification(notificationId, userId) {
+  if (!isValidObjectId(notificationId)) {
+    throw new AppError('Invalid notification ID format', 400);
+  }
+
+  if (!isValidObjectId(userId)) {
+    throw new AppError('Invalid user ID', 400);
+  }
+
   const notification = await Notification.findOneAndDelete({
     _id: notificationId,
     recipient: userId,
