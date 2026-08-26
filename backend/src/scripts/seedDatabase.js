@@ -10,7 +10,8 @@ try {
   console.warn('[Seeder Notice]: Custom DNS servers could not be set:', err.message);
 }
 
-const TARGET_DB_URI = env.databaseUrl || 'mongodb+srv://vendorhub:vendorhub123@cluster0.lxzbk8y.mongodb.net/vendorhub-ai?appName=Cluster0';
+const TARGET_DB_URI = env.databaseUrl || 'mongodb://localhost:27017/smart_document_collaboration_platform';
+
 
 
 // Rich Default Seed Document (matching MOCK_INITIAL_DOCUMENT)
