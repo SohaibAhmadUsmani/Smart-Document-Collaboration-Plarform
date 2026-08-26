@@ -45,7 +45,8 @@ export function FormattingToolbar({
   };
 
   return (
-    <div className="sticky top-[108px] z-30 mx-auto my-3.5 w-fit flex items-center gap-1 p-1 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl shadow-md shadow-slate-200/50 select-none">
+    <div className="mx-auto my-2 w-fit flex items-center gap-1 p-1 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-xl shadow-lg shadow-slate-200/60 select-none">
+
       {/* 1. Style Dropdown */}
       <div className="relative">
         <button

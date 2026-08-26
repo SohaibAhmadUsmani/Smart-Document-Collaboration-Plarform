@@ -13,10 +13,13 @@
     "preview": "vite preview",
     "check:backend": "node --check backend/src/server.js",
     "check": "npm run check:backend",
+    "seed:database": "node backend/src/scripts/seedDatabase.js",
     "test": "node --experimental-test-module-mocks --test backend/src/modules/**/*.test.js",
+    "test:documents": "node --experimental-test-module-mocks --test backend/src/modules/documents/tests/*.test.js",
     "test:comments": "node --experimental-test-module-mocks --test backend/src/modules/comments/tests/*.test.js",
     "test:notifications": "node --experimental-test-module-mocks --test backend/src/modules/notifications/tests/*.test.js"
   },
+
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
