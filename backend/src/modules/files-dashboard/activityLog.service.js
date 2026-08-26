@@ -1,10 +1,10 @@
 import { ActivityLogModel } from './activityLog.model.js';
 
-export async function logActivity({ action, entityId, entityName, workspaceId, userId, metadata = {} }) {
+export async function logActivity({ action, entityType = 'file', entityId, entityName, workspaceId, userId, metadata = {} }) {
   try {
     await ActivityLogModel.create({
       action,
-      entityType: 'file',
+      entityType,
       entityId,
       entityName,
       workspaceId,

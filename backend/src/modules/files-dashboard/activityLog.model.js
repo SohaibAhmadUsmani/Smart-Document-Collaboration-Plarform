@@ -5,7 +5,20 @@ const ActivityLogSchema = new mongoose.Schema(
     action: {
       type: String,
       required: true,
-      enum: ['file.uploaded', 'file.renamed', 'file.moved', 'file.deleted'],
+      enum: [
+        'file.uploaded',
+        'file.renamed',
+        'file.moved',
+        'file.deleted',
+        'document.created',
+        'document.updated',
+        'document.tags_updated',
+        'document.favorite_toggled',
+        'document.duplicated',
+        'document.archived',
+        'document.restored',
+        'document.permanently_deleted',
+      ],
     },
     entityType: {
       type: String,
@@ -18,8 +31,8 @@ const ActivityLogSchema = new mongoose.Schema(
       index: true,
     },
     entityName: {
-      // snapshot of the file name at the time of the action, so history
-      // still reads correctly even after later renames
+      // snapshot of the file/document name at the time of the action, so
+      // history still reads correctly even after later renames
       type: String,
       required: true,
     },
