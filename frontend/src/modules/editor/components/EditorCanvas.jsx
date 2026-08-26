@@ -1,155 +1,142 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { DocumentEditorProvider, useDocumentEditorContext } from '../context/DocumentEditorContext.jsx';
 import { useDocumentEditor } from '../hooks/useDocumentEditor.js';
 import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useAutosave } from '../hooks/useAutosave.js';
-import { EditorHeader } from './EditorHeader.jsx';
-import { EditorToolbar } from './EditorToolbar.jsx';
-import { TagFavoriteBar } from './TagFavoriteBar.jsx';
-import { DocumentStats } from './DocumentStats.jsx';
-import { DocumentOutline } from './DocumentOutline.jsx';
-import { apiGetDocument, apiUpdateDocumentMetadata } from '../services/documentApi.js';
+import { TopGlobalHeader } from './TopGlobalHeader.jsx';
+import { DocSubHeader } from './DocSubHeader.jsx';
+import { FormattingToolbar } from './FormattingToolbar.jsx';
+import { PaperDocumentSheet } from './PaperDocumentSheet.jsx';
+import { CollaborationSidebar } from './CollaborationSidebar.jsx';
+import { BottomStatusBar } from './BottomStatusBar.jsx';
+import { apiGetDocument } from '../services/documentApi.js';
+import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
 
 function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
-  const { state, setDocument, updateTitle, setIsReadOnly } = useDocumentEditor();
-  const { editorRef, isReady, executeCommand } = useTipTapEditor();
-  const [isLoading, setIsLoading] = useState(Boolean(state.documentId));
-  const [loadError, setLoadError] = useState(null);
-  const [showOutline, setShowOutline] = useState(false);
+  const { state, setDocument, updateTitle } = useDocumentEditor();
+  const { editorRef, isReady, executeCommand, editorInstance } = useTipTapEditor({
+    initialContent: state.content || MOCK_INITIAL_DOCUMENT.content,
+  });
 
-  // Load document data from backend API
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Initialize document data (from API if id exists, or fallback to mock)
   useEffect(() => {
-    if (!state.documentId) return;
-
     let isMounted = true;
-    setIsLoading(true);
-    setLoadError(null);
 
-    apiGetDocument(state.documentId)
-      .then((doc) => {
-        if (isMounted && doc) {
-          setDocument(doc);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          setLoadError(err.message || 'Failed to load document');
-        }
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    if (state.documentId && state.documentId !== MOCK_INITIAL_DOCUMENT.id) {
+      setIsLoading(true);
+      apiGetDocument(state.documentId)
+        .then((doc) => {
+          if (isMounted && doc) setDocument(doc);
+        })
+        .catch((err) => {
+          console.warn('[DocSync Notice]: Loading template document:', err.message);
+          if (isMounted) setDocument(MOCK_INITIAL_DOCUMENT);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    } else if (!state.content) {
+      // Hydrate with initial template if content is unpopulated
+      setDocument(MOCK_INITIAL_DOCUMENT);
+    }
 
     return () => {
       isMounted = false;
     };
-  }, [state.documentId]);
+  }, [state.documentId, state.content]);
 
-  // Hook for autosaving document content changes
+  // Autosave hook
   const { status: saveStatus, lastSavedAt } = useAutosave({
-    documentId: state.documentId,
+    documentId: state.documentId || MOCK_INITIAL_DOCUMENT.id,
     content: state.content,
     plainText: state.plainText,
-    enabled: !state.isReadOnly && Boolean(state.documentId),
+    enabled: !state.isReadOnly,
     debounceMs: 1500,
   });
 
-  const handleTitleChange = async (newTitle) => {
-    updateTitle(newTitle);
-    if (state.documentId && !state.isReadOnly) {
-      try {
-        await apiUpdateDocumentMetadata(state.documentId, { title: newTitle });
-      } catch (err) {
-        console.error('[Title Update Error]:', err);
+  // Calculate live statistics
+  const metrics = useMemo(() => {
+    const text = state.plainText || '';
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const characters = text.length;
+    return {
+      words: words || MOCK_INITIAL_DOCUMENT.wordCount,
+      characters: characters || MOCK_INITIAL_DOCUMENT.characterCount,
+    };
+  }, [state.plainText]);
+
+  // Jump to comment anchor in document
+  const handleCommentClick = (comment) => {
+    if (!comment || !editorInstance) return;
+    const targetQuote = comment.anchor?.exactQuote;
+    if (targetQuote) {
+      const text = editorInstance.getText();
+      const index = text.indexOf(targetQuote);
+      if (index !== -1) {
+        editorInstance.commands.setTextSelection({
+          from: index + 1,
+          to: index + 1 + targetQuote.length,
+        });
       }
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-sm text-slate-500 animate-pulse">Loading document...</div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <h3 className="text-base font-semibold text-red-600 mb-1">Error Loading Document</h3>
-        <p className="text-sm text-slate-500 mb-4">{loadError}</p>
-      </div>
-    );
-  }
-
   return (
     <div
       data-editor-container="true"
-      className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950"
+      className="flex flex-col min-h-screen bg-slate-50 text-slate-900 font-sans antialiased"
     >
-      {/* Top Header with title, autosave status, and actions */}
-      <EditorHeader
-        documentId={state.documentId}
-        title={state.title}
-        onTitleChange={handleTitleChange}
+      {/* 1. Top Global Navigation Header */}
+      <TopGlobalHeader />
+
+      {/* 2. Document Sub-Header & Action Breadcrumb Bar */}
+      <DocSubHeader
+        documentTitle={state.title || MOCK_INITIAL_DOCUMENT.title}
+        workspaceName={state.workspaceName || MOCK_INITIAL_DOCUMENT.workspaceName}
         saveStatus={saveStatus}
         lastSavedAt={lastSavedAt}
-        isReadOnly={state.isReadOnly}
-        onReadOnlyToggle={setIsReadOnly}
-        onDocumentDuplicated={onDocumentDuplicated}
-        onDocumentArchived={onDocumentArchived}
+        onTitleChange={(newTitle) => updateTitle(newTitle)}
+        onShareClick={() => alert('Workspace sharing modal opened: manage access and link permissions.')}
       />
 
-      {/* Tags and Starred Favorites bar */}
-      <TagFavoriteBar isReadOnly={state.isReadOnly} />
+      {/* 3. Main Workspace Area: Canvas + Formatting Toolbar + Collaboration Sidebar */}
+      <div className="flex-1 flex w-full relative">
+        {/* Left / Center Canvas Container */}
+        <main className="flex-1 min-w-0 flex flex-col items-center px-4 sm:px-8 pb-16 overflow-y-auto">
+          {/* Floating / Sticky Formatting Toolbar */}
+          <FormattingToolbar
+            onCommand={executeCommand}
+            activeMarks={state.activeMarks}
+            isReadOnly={state.isReadOnly}
+          />
 
-      {/* Rich formatting toolbar */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <EditorToolbar
-          onCommand={executeCommand}
-          activeMarks={state.activeMarks}
-          isReadOnly={state.isReadOnly}
-        />
-        <button
-          type="button"
-          onClick={() => setShowOutline((prev) => !prev)}
-          className={`px-3 py-1.5 text-xs font-medium mr-2 rounded transition-colors ${
-            showOutline
-              ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white'
-              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-          title="Toggle Table of Contents Outline"
-        >
-          Outline
-        </button>
-      </div>
-
-      {/* Main Canvas & Outline Sidebar Layout */}
-      <div className="flex flex-1 max-w-6xl w-full mx-auto px-6 py-6 gap-6">
-        {/* Main document canvas */}
-        <main className="flex-1 min-w-0">
-          <div className="min-h-[70vh] bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-8">
-            <article
-              data-editor-canvas="true"
-              data-readonly={state.isReadOnly ? 'true' : 'false'}
-              data-save-status={state.saveStatus}
-              className="prose dark:prose-invert max-w-none focus:outline-none min-h-[500px]"
-            >
-              <div ref={editorRef} data-editor-surface="true" tabIndex={0} />
-            </article>
-          </div>
+          {/* Centered Paper Document Sheet */}
+          <PaperDocumentSheet
+            editorRef={editorRef}
+            isReady={isReady && !isLoading}
+            isReadOnly={state.isReadOnly}
+          />
         </main>
 
-        {/* Outline Sidebar Drawer */}
-        {showOutline && (
-          <aside className="w-64 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 p-4 h-fit sticky top-20">
-            <DocumentOutline />
-          </aside>
-        )}
+        {/* Right Collapsible Collaboration & History Sidebar */}
+        <CollaborationSidebar
+          activeThreadId={state.activeCommentThreadId}
+          onResolveComment={(id) => console.log('Comment resolved:', id)}
+          onAddComment={(cmt) => console.log('Comment added:', cmt)}
+          onCommentClick={handleCommentClick}
+        />
       </div>
 
-      {/* Live metrics footer */}
-      <DocumentStats plainText={state.plainText} />
+      {/* 4. Bottom Fixed Status Bar */}
+      <BottomStatusBar
+        wordCount={metrics.words}
+        characterCount={metrics.characters}
+        lastEditedBy={MOCK_INITIAL_DOCUMENT.lastEditedBy}
+        lastEditedAt={MOCK_INITIAL_DOCUMENT.lastEditedAt}
+        folderLocation={MOCK_INITIAL_DOCUMENT.folderName}
+      />
     </div>
   );
 }
@@ -172,3 +159,5 @@ export function EditorCanvas({
     </DocumentEditorProvider>
   );
 }
+
+export default EditorCanvas;

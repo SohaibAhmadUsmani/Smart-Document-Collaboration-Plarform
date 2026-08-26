@@ -196,11 +196,11 @@ const DocumentSchema = new mongoose.Schema(
   }
 );
 
-// Compound indexes for enterprise queries
 DocumentSchema.index({ workspaceId: 1, isArchived: 1, updatedAt: -1 });
 DocumentSchema.index({ workspaceId: 1, folderId: 1, isArchived: 1 });
 DocumentSchema.index({ workspaceId: 1, tags: 1, isArchived: 1 });
 DocumentSchema.index({ workspaceId: 1, favoritedBy: 1, isArchived: 1 });
 DocumentSchema.index({ isArchived: 1, scheduledPermanentDeletionAt: 1 });
+DocumentSchema.index({ scheduledPermanentDeletionAt: 1 }, { expireAfterSeconds: 0 });
 
 export const DocumentModel = mongoose.models.Document || mongoose.model('Document', DocumentSchema);
