@@ -25,17 +25,21 @@ export function requireAuth(req, res, next) {
         };
         return next();
       } catch (tokenErr) {
-        console.warn('[Auth Notice]: Invalid session token:', tokenErr.message);
+        // In dev mode, stale tokens are expected — the fallback user handles auth.
+        // Only log in production where invalid tokens are a security concern.
+        if (env.nodeEnv === 'production') {
+          console.warn('[Auth Notice]: Invalid session token:', tokenErr.message);
+        }
       }
     }
 
-    // Development fallback user to prevent 401 crashes across team modules
+    // Development fallback user — matches seeded User in seedDatabase.js
     if (!req.user) {
       req.user = {
-        id: '654321098765432109876543', // Standard 24-char ObjectId format
-        _id: '654321098765432109876543',
-        name: 'Muzammil Tanveer',
-        email: 'muzammil@docsync.pro',
+        id: '66cc00000000000000000004',
+        _id: '66cc00000000000000000004',
+        name: 'Muzammil (Document Editor Lead)',
+        email: 'muzammil@docplatform.local',
         role: 'owner',
       };
     }

@@ -109,7 +109,7 @@ export function validateCreateComment(req, res, next) {
  */
 export function validateReplyToComment(req, res, next) {
   const { commentId } = req.params;
-  const { documentId, body, anchorType, from, to, mentions } = req.body;
+  const { body } = req.body;
 
   if (!commentId || !isValidObjectId(commentId)) {
     return res.status(400).json({
@@ -119,80 +119,12 @@ export function validateReplyToComment(req, res, next) {
     });
   }
 
-  if (!documentId || !isValidObjectId(documentId)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'A valid documentId is required.',
-    });
-  }
-
   if (!body || typeof body !== 'string' || !body.trim()) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
       message: 'Comment body is required and cannot be empty.',
     });
-  }
-
-  if (!anchorType || !VALID_ANCHOR_TYPES.includes(anchorType)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: `anchorType must be one of: ${VALID_ANCHOR_TYPES.join(', ')}.`,
-    });
-  }
-
-  if (typeof from !== 'number' || Number.isNaN(from)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'from must be a valid number.',
-    });
-  }
-
-  if (from < 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'from must not be negative.',
-    });
-  }
-
-  if (typeof to !== 'number' || Number.isNaN(to)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'to must be a valid number.',
-    });
-  }
-
-  if (to < from) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'to must not be less than from.',
-    });
-  }
-
-  if (mentions !== undefined && mentions !== null) {
-    if (!Array.isArray(mentions)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Validation Error',
-        message: 'mentions must be an array if provided.',
-      });
-    }
-
-    for (const mentionId of mentions) {
-      if (!isValidObjectId(mentionId)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Validation Error',
-          message: `Invalid mention user ID: '${mentionId}'.`,
-        });
-      }
-    }
   }
 
   next();
