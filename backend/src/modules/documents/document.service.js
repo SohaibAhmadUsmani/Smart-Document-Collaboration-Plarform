@@ -6,7 +6,10 @@ import {
   extractPlainTextFromAst,
   astToMarkdown,
   ensureBlockIdsInAst,
+  sanitizeDocumentAst,
 } from './document.utils.js';
+import { getTemplateById } from './documentTemplates.js';
+
 
 const TRASH_RETENTION_DAYS = 30;
 
@@ -18,28 +21,35 @@ const TRASH_RETENTION_DAYS = 30;
  * @returns {Promise<Object>} Created document.
  */
 export async function createDocument(documentData, userId) {
-  const content = ensureBlockIdsInAst(
-    documentData.content || {
-      type: 'doc',
-      content: [{ type: 'paragraph', attrs: { blockId: `block_${crypto.randomUUID()}` }, content: [] }],
-    }
-  );
+  let template = null;
+  if (documentData.templateId) {
+    template = getTemplateById(documentData.templateId);
+  }
+
+  const rawContent = documentData.content || (template ? template.content : null) || {
+    type: 'doc',
+    content: [{ type: 'paragraph', attrs: { blockId: `block_${crypto.randomUUID()}` }, content: [] }],
+  };
+
+  const content = sanitizeDocumentAst(ensureBlockIdsInAst(rawContent));
 
   const plainText = documentData.plainText !== undefined
     ? documentData.plainText
     : extractPlainTextFromAst(content);
 
-  const cleanTags = Array.isArray(documentData.tags)
-    ? Array.from(new Set(documentData.tags.map((t) => String(t).trim().toLowerCase().slice(0, 30)).filter(Boolean)))
-    : [];
+  const initialTags = Array.isArray(documentData.tags) && documentData.tags.length > 0
+    ? documentData.tags
+    : (template?.tags || []);
+
+  const cleanTags = Array.from(new Set(initialTags.map((t) => String(t).trim().toLowerCase().slice(0, 30)).filter(Boolean)));
 
   const newDocument = new DocumentModel({
     workspaceId: documentData.workspaceId,
     folderId: documentData.folderId || null,
-    title: documentData.title || 'Untitled Document',
+    title: documentData.title || (template ? template.title : 'Untitled Document'),
     content,
     plainText,
-    icon: documentData.icon || null,
+    icon: documentData.icon || (template ? template.icon : null),
     coverImage: documentData.coverImage || null,
     tags: cleanTags,
     favoritedBy: [],
@@ -49,6 +59,7 @@ export async function createDocument(documentData, userId) {
     isArchived: false,
     version: 1,
     snapshotCheckpointVersion: 1,
+    templateId: documentData.templateId || null,
   });
 
   const saved = await newDocument.save();
@@ -64,6 +75,7 @@ export async function createDocument(documentData, userId) {
 
   return saved;
 }
+
 
 /**
  * Retrieves a document by its ID.
@@ -193,17 +205,29 @@ export async function updateDocumentMetadata(documentId, updateData, userId) {
  * @returns {Promise<Object|null>} Updated document.
  */
 export async function autosaveDocumentContent(documentId, contentPayload, userId) {
-  const content = ensureBlockIdsInAst(contentPayload.content);
+  const content = sanitizeDocumentAst(ensureBlockIdsInAst(contentPayload.content));
   const plainText = contentPayload.plainText !== undefined
     ? contentPayload.plainText
     : extractPlainTextFromAst(content);
 
   const previousDoc = await DocumentModel.findOne({ _id: documentId, isArchived: false })
-    .select('version snapshotCheckpointVersion')
+    .select('version snapshotCheckpointVersion title content plainText updatedAt')
     .lean()
     .exec();
 
   if (!previousDoc) return null;
+
+  // Optimistic Concurrency Control (OCC)
+  if (contentPayload.baseVersion !== undefined && contentPayload.baseVersion !== null) {
+    if (previousDoc.version !== Number(contentPayload.baseVersion)) {
+      return {
+        conflict: true,
+        currentVersion: previousDoc.version,
+        baseVersion: Number(contentPayload.baseVersion),
+        serverDocument: previousDoc,
+      };
+    }
+  }
 
   const updated = await DocumentModel.findOneAndUpdate(
     { _id: documentId, isArchived: false },
@@ -225,10 +249,25 @@ export async function autosaveDocumentContent(documentId, contentPayload, userId
       modifiedBy: userId,
       timestamp: updated.updatedAt,
     });
+
+    // Milestone Snapshot Checkpoint (Emit every 25 edits)
+    if (updated.version % 25 === 0) {
+      documentEvents.emit(DOCUMENT_EVENTS.SNAPSHOT_CHECKPOINT_CREATED, {
+        documentId: updated.id,
+        workspaceId: updated.workspaceId,
+        version: updated.version,
+        title: updated.title,
+        content: updated.content,
+        plainText: updated.plainText,
+        createdBy: userId,
+        timestamp: updated.updatedAt,
+      });
+    }
   }
 
   return updated;
 }
+
 
 /**
  * Toggles a user's favorite star status on a document.

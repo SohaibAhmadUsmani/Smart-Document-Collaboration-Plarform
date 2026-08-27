@@ -260,3 +260,50 @@ export function astToMarkdown(documentAst, documentTitle = '') {
 
   return lines.join('\n').replace(/\n{3,}/g, '\n\n');
 }
+
+/**
+ * Sanitizes a ProseMirror / TipTap Document AST recursively.
+ * Strips dangerous URI schemes (javascript:, vbscript:, data:text/html) from link marks
+ * and ensures safe attribute values on all nodes.
+ *
+ * @param {Object} node - AST node to sanitize
+ * @returns {Object} Sanitized AST node
+ */
+export function sanitizeDocumentAst(node) {
+  if (!node || typeof node !== 'object') return node;
+
+  const sanitized = { ...node };
+
+  // Sanitize marks (e.g. links)
+  if (Array.isArray(sanitized.marks)) {
+    sanitized.marks = sanitized.marks
+      .map((mark) => {
+        if (!mark || typeof mark !== 'object') return null;
+        if (mark.type === 'link') {
+          const href = String(mark.attrs?.href || '').trim();
+          // Filter out dangerous URI schemes
+          if (/^(javascript:|vbscript:|data:(?!image\/))/i.test(href)) {
+            return null; // Strip malicious link mark
+          }
+        }
+        return mark;
+      })
+      .filter(Boolean);
+  }
+
+  // Sanitize node-specific attributes
+  if (sanitized.type === 'image' && sanitized.attrs?.src) {
+    const src = String(sanitized.attrs.src).trim();
+    if (/^(javascript:|vbscript:)/i.test(src)) {
+      sanitized.attrs = { ...sanitized.attrs, src: '' };
+    }
+  }
+
+  // Recursively sanitize children
+  if (Array.isArray(sanitized.content)) {
+    sanitized.content = sanitized.content.map(sanitizeDocumentAst).filter(Boolean);
+  }
+
+  return sanitized;
+}
+

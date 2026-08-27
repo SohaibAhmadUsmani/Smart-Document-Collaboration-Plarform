@@ -158,8 +158,8 @@ const DocumentSchema = new mongoose.Schema(
     scheduledPermanentDeletionAt: {
       type: Date,
       default: null,
-      index: true,
     },
+
     previousFolderId: {
       type: String,
       default: null,
@@ -173,6 +173,11 @@ const DocumentSchema = new mongoose.Schema(
     snapshotCheckpointVersion: {
       type: Number,
       default: 1,
+    },
+    templateId: {
+      type: String,
+      default: null,
+      trim: true,
     },
   },
   {
@@ -201,6 +206,11 @@ DocumentSchema.index({ workspaceId: 1, folderId: 1, isArchived: 1 });
 DocumentSchema.index({ workspaceId: 1, tags: 1, isArchived: 1 });
 DocumentSchema.index({ workspaceId: 1, favoritedBy: 1, isArchived: 1 });
 DocumentSchema.index({ isArchived: 1, scheduledPermanentDeletionAt: 1 });
-DocumentSchema.index({ scheduledPermanentDeletionAt: 1 }, { expireAfterSeconds: 0 });
+DocumentSchema.index({ scheduledPermanentDeletionAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+DocumentSchema.index(
+  { title: 'text', plainText: 'text' },
+  { weights: { title: 10, plainText: 2 }, name: 'DocumentFullTextIndex' }
+);
 
 export const DocumentModel = mongoose.models.Document || mongoose.model('Document', DocumentSchema);
+
