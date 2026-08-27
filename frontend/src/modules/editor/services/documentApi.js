@@ -190,19 +190,16 @@ export async function apiExportDocument(documentId, format = 'markdown') {
   return res.data || { format, content: '# Exported Content' };
 }
 
-/**
- * Link an attachment to a document.
- * @param {string} documentId
- * @param {Object} filePayload
- * @returns {Promise<Object>}
- */
-export async function apiLinkAttachment(documentId, filePayload) {
+export const apiLinkAttachment = async function (documentId, filePayload) {
   const res = await safeFetch(`${API_BASE}/${documentId}/attachments`, {
     method: 'POST',
     body: JSON.stringify(filePayload),
   });
   return res.data || filePayload;
-}
+};
+
+export const apiAddAttachment = apiLinkAttachment;
+
 
 /**
  * Remove an attachment from a document.

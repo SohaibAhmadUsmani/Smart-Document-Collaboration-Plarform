@@ -6,8 +6,11 @@ export const SAVE_STATUS = {
   IDLE: 'idle',
   SAVING: 'saving',
   SAVED: 'saved',
+  OFFLINE_SAVED: 'offline_saved',
+  CONFLICT: 'conflict',
   ERROR: 'error',
 };
+
 
 export const DEFAULT_DOCUMENT_AST = {
   type: 'doc',

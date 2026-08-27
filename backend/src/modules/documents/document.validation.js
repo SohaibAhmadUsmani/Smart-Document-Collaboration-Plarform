@@ -98,6 +98,9 @@ export function validateUpdateMetadata(req, res, next) {
   next();
 }
 
+export const validateUpdateDocument = validateUpdateMetadata;
+
+
 /**
  * Validates request payload for autosaving document content.
  */

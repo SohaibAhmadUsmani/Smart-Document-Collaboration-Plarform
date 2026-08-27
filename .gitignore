@@ -5,7 +5,30 @@ node_modules/
 uploads/
 coverage/
 dist/
+# Logs & Diagnostics
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Test & Coverage Caches
+.nyc_output/
+
+# Certificates, Keys & Dumps
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*.dump
+*.sql
+*.sqlite
+*.db
+*.rdb
 
 # AI Agent Skills, Rules & Local Configs
 .agent/
@@ -27,6 +50,15 @@ skills/
 # OS & Temp Cache
 .DS_Store
 Thumbs.db
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.turbo/
+.parcel-cache/
+.eslintcache
 
 # Local Architecture & Blueprint Documents
 Smart_Document_Platform_Architecture_Blueprint.md
+

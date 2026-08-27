@@ -20,7 +20,9 @@ export function DocSubHeader({
   onTitleChange,
   onShareClick,
   onPublishClick,
+  onOpenShortcuts,
 }) {
+
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
@@ -148,6 +150,17 @@ export function DocSubHeader({
           </button>
         </div>
 
+        {/* Shortcuts & Zen Mode Controls */}
+        <button
+          type="button"
+          onClick={onOpenShortcuts}
+          title="Keyboard Shortcuts (Ctrl+/)"
+          className="h-8.5 px-2.5 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-600 shadow-2xs transition-colors"
+        >
+          <span className="font-mono text-[10px] font-semibold text-slate-400">Ctrl+/</span>
+        </button>
+
+
         {/* Share Button */}
         <button
           type="button"
@@ -186,3 +199,4 @@ export function DocSubHeader({
     </div>
   );
 }
+
