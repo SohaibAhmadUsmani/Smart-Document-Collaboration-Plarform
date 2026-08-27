@@ -46,7 +46,7 @@ documentRouter.get(
 documentRouter.put(
   '/:id',
   validator.validateDocumentId,
-  validator.validateUpdateDocument,
+  validator.validateUpdateMetadata,
   requireDocumentAccess('edit'),
   controller.updateDocumentHandler
 );

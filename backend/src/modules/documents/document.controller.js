@@ -128,9 +128,9 @@ export async function autosaveDocumentHandler(req, res, next) {
   try {
     const { id } = req.params;
     const userId = getUserId(req);
-    const updated = await documentService.autosaveDocumentContent(id, req.body, userId);
+    const result = await documentService.autosaveDocumentContent(id, req.body, userId);
 
-    if (!updated) {
+    if (!result) {
       return res.status(404).json({
         success: false,
         error: 'Not Found',
@@ -138,19 +138,30 @@ export async function autosaveDocumentHandler(req, res, next) {
       });
     }
 
+    if (result.conflict) {
+      return res.status(409).json({
+        success: false,
+        error: 'Conflict',
+        code: 'VERSION_CONFLICT',
+        message: `Document version mismatch. Server has version ${result.currentVersion}, base was ${result.baseVersion}.`,
+        serverDocument: result.serverDocument,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Document autosaved successfully',
       data: {
-        id: updated.id,
-        version: updated.version,
-        updatedAt: updated.updatedAt,
+        id: result.id,
+        version: result.version,
+        updatedAt: result.updatedAt,
       },
     });
   } catch (error) {
     next(error);
   }
 }
+
 
 /**
  * Handler to toggle star/favorite on a document.

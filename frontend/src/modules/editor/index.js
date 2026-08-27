@@ -20,6 +20,11 @@ export { DocumentStats } from './components/DocumentStats.jsx';
 export { DocumentOutline } from './components/DocumentOutline.jsx';
 export { TagFavoriteBar } from './components/TagFavoriteBar.jsx';
 export { SaveStatusIndicator } from './components/SaveStatusIndicator.jsx';
+export { SlashCommandMenu, SLASH_COMMAND_ITEMS } from './components/SlashCommandMenu.jsx';
+export { BubbleFloatingMenu } from './components/BubbleFloatingMenu.jsx';
+export { TableCellMenu } from './components/TableCellMenu.jsx';
+export { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal.jsx';
+
 
 // Context & Provider
 export { DocumentEditorProvider, useDocumentEditorContext } from './context/DocumentEditorContext.jsx';
