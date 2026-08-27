@@ -8,10 +8,18 @@ Frontend module for document comments, mentions, replies, and resolution.
 
 ```
 comments/
-├── components/     # React UI components (comment panel, thread, form)
-├── hooks/          # Custom hooks (useComments, useCommentThread)
-├── services/       # API service functions (commentApi.js)
-├── types/          # Type definitions and constants (comment.js)
+├── components/
+│   ├── CommentsPanel.jsx      # Main container, connects hook to UI
+│   ├── CommentList.jsx        # Renders top-level comments
+│   ├── CommentThread.jsx      # Parent comment + replies + reply composer
+│   ├── CommentItem.jsx        # Single comment display (presentational)
+│   └── CommentComposer.jsx    # Reusable text input for comments/replies
+├── hooks/
+│   └── useComments.js         # Comment state and CRUD operations
+├── services/
+│   └── commentApi.js          # API functions for backend endpoints
+├── types/
+│   └── comment.js             # Type definitions and anchor types
 └── README.md
 ```
 
@@ -69,6 +77,63 @@ const {
 }
 ```
 
+## UI Components
+
+### CommentsPanel
+
+Main container that wires `useComments` to the component tree.
+
+```jsx
+<CommentsPanel
+  documentId={docId}
+  createAnchorPayload={anchorData}  // optional: from useCommentAnchors
+  onCommentCreated={(comment) => attachCommentMark(comment._id)}
+/>
+```
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `documentId` | `string` | Document to load comments for |
+| `createAnchorPayload` | `Object\|null` | Optional anchor data merged into create payload |
+| `onCommentCreated` | `Function` | Called with the new comment after creation |
+
+### CommentList
+
+Renders top-level comments as threads. Shows empty state when no comments exist.
+
+### CommentThread
+
+Displays a parent comment with its replies and an inline reply composer.
+
+### CommentItem
+
+Presentational component for a single comment. Shows author name, body, timestamp, and resolved status. Actions (reply, resolve, delete) are received as callbacks.
+
+### CommentComposer
+
+Reusable textarea input for creating comments and replies. Supports Ctrl+Enter to submit, cancel, and disabled/loading states.
+
+```jsx
+<CommentComposer
+  onSubmit={handleSubmit}
+  isSubmitting={isCreating}
+  placeholder="Write a comment..."
+  submitLabel="Comment"
+/>
+```
+
+## Component Hierarchy
+
+```
+CommentsPanel
+├── CommentComposer (new top-level comment)
+└── CommentList
+    └── CommentThread (per top-level comment)
+        ├── CommentItem (parent)
+        ├── CommentItem (each reply)
+        └── CommentComposer (inline reply)
+```
+
 ## Integration with Editor
 
 The editor module provides `useCommentAnchors(editorInstance)` which handles:
@@ -78,8 +143,22 @@ The editor module provides `useCommentAnchors(editorInstance)` which handles:
 
 The Comments hook does NOT manage anchor state. The UI layer composes both:
 1. Use `useCommentAnchors` to capture anchor data from the editor
-2. Pass that anchor data into `createComment` payload
+2. Pass that anchor data as `createAnchorPayload` to `CommentsPanel`
 3. After creation, use the returned comment `_id` with `attachCommentMark`
+
+### Planned integration flow
+
+```
+User selects text in editor
+  → useCommentAnchors captures selection via captureSelectionAnchor()
+  → CommentsPanel receives anchor data via createAnchorPayload prop
+  → User writes comment body in CommentComposer
+  → useComments.createComment({ ...anchorData, body })
+  → Backend returns comment._id
+  → onCommentCreated calls attachCommentMark(comment._id)
+```
+
+This flow is supported by the current component structure but not yet wired end-to-end. It will be completed in a future milestone.
 
 ## Backend
 
