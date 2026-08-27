@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 /* ==========================================================================
+
    DOCSYNC PRO: DESIGN SYSTEM SCALES, KEYFRAMES & ELEVATION TOKENS
    ========================================================================== */
 
