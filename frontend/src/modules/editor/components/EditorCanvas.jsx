@@ -1,18 +1,19 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { DocumentEditorProvider, useDocumentEditorContext } from '../context/DocumentEditorContext.jsx';
 import { useDocumentEditor } from '../hooks/useDocumentEditor.js';
 import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useAutosave } from '../hooks/useAutosave.js';
+import { useCommentAnchors } from '../hooks/useCommentAnchors.js';
 import { TopGlobalHeader } from './TopGlobalHeader.jsx';
 import { DocSubHeader } from './DocSubHeader.jsx';
 import { FormattingToolbar } from './FormattingToolbar.jsx';
 import { PaperDocumentSheet } from './PaperDocumentSheet.jsx';
-import { CollaborationSidebar } from './CollaborationSidebar.jsx';
 import { BottomStatusBar } from './BottomStatusBar.jsx';
 import { SlashCommandMenu } from './SlashCommandMenu.jsx';
 import { BubbleFloatingMenu } from './BubbleFloatingMenu.jsx';
 import { TableCellMenu } from './TableCellMenu.jsx';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal.jsx';
+import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
 import { apiGetDocument, apiAddAttachment } from '../services/documentApi.js';
 import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
 import { SAVE_STATUS } from '../types/document.js';
@@ -20,10 +21,17 @@ import { SAVE_STATUS } from '../types/document.js';
 const PRIMARY_LIVE_SEED_ID = '66cc00000000000000000001';
 
 function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
-  const { state, setDocument, updateTitle, addAttachment } = useDocumentEditor();
+  const { state, setDocument, updateTitle, addAttachment, setActiveCommentThread } = useDocumentEditor();
   const { editorRef, isReady, executeCommand, editorInstance } = useTipTapEditor({
     initialContent: state.content || MOCK_INITIAL_DOCUMENT.content,
   });
+
+  // Comment anchor integration
+  const {
+    captureSelectionAnchor,
+    attachCommentMark,
+    activeCommentThreadId,
+  } = useCommentAnchors(editorInstance);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -133,20 +141,41 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   }, []);
 
   // Jump to comment anchor in document
-  const handleCommentClick = (comment) => {
+  const handleCommentClick = useCallback((comment) => {
     if (!comment || !editorInstance) return;
-    const targetQuote = comment.anchor?.exactQuote;
-    if (targetQuote) {
-      const text = editorInstance.getText();
-      const index = text.indexOf(targetQuote);
-      if (index !== -1) {
-        editorInstance.commands.setTextSelection({
-          from: index + 1,
-          to: index + 1 + targetQuote.length,
-        });
-      }
+
+    // Update active comment thread in editor state
+    setActiveCommentThread(comment._id);
+
+    // Try to navigate using anchor data from the comment
+    const anchor = comment.anchor;
+    const targetQuote = anchor?.exactQuote || comment.exactQuote;
+    if (!targetQuote) return;
+
+    const text = editorInstance.getText();
+    const index = text.indexOf(targetQuote);
+    if (index !== -1) {
+      editorInstance
+        .chain()
+        .focus()
+        .setTextSelection({ from: index + 1, to: index + 1 + targetQuote.length })
+        .run();
     }
-  };
+  }, [editorInstance, setActiveCommentThread]);
+
+  // Capture anchor data when creating a comment from editor selection.
+  // This is a function (not a memoized value) so the selection is captured
+  // at submission time, not at render time.
+  const getAnchorPayload = useCallback(() => {
+    return captureSelectionAnchor();
+  }, [captureSelectionAnchor]);
+
+  // Called after a top-level comment is successfully created
+  const handleCommentCreated = useCallback((comment) => {
+    if (comment && comment._id) {
+      attachCommentMark(comment._id);
+    }
+  }, [attachCommentMark]);
 
   // Handle Drag-and-Drop file ingestion
   const handleFileDrop = async (file) => {
@@ -239,12 +268,15 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
 
         {/* Right Collapsible Collaboration & History Sidebar (Hidden in Zen Mode) */}
         {!isZenMode && (
-          <CollaborationSidebar
-            activeThreadId={state.activeCommentThreadId}
-            onResolveComment={(id) => console.log('Comment resolved:', id)}
-            onAddComment={(cmt) => console.log('Comment added:', cmt)}
-            onCommentClick={handleCommentClick}
-          />
+          <div className="w-88 flex-shrink-0 flex flex-col border-l border-slate-200 bg-white sticky top-12 h-[calc(100vh-48px)] overflow-hidden select-none">
+            <CommentsPanel
+              documentId={state.documentId}
+              createAnchorPayload={getAnchorPayload}
+              onCommentCreated={handleCommentCreated}
+              onCommentClick={handleCommentClick}
+              activeCommentThreadId={activeCommentThreadId}
+            />
+          </div>
         )}
       </div>
 

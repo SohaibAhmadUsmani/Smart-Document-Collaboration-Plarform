@@ -14,6 +14,8 @@ import { CommentComposer } from './CommentComposer.jsx';
  * @param {Function} [props.onDelete] - Called with commentId to delete
  * @param {boolean} [props.isResolving] - Whether resolve is in progress
  * @param {boolean} [props.isDeleting] - Whether delete is in progress
+ * @param {Function} [props.onCommentClick] - Called when the parent comment is clicked
+ * @param {boolean} [props.isActive] - Whether this thread is the active thread in the editor
  */
 export function CommentThread({
   comment,
@@ -23,6 +25,8 @@ export function CommentThread({
   onDelete,
   isResolving = false,
   isDeleting = false,
+  onCommentClick,
+  isActive = false,
 }) {
   const [isReplying, setIsReplying] = useState(false);
 
@@ -39,15 +43,17 @@ export function CommentThread({
   }, []);
 
   return (
-    <div className="comment-thread space-y-1">
-      <CommentItem
-        comment={comment}
-        onReply={() => setIsReplying(true)}
-        onResolve={onResolve}
-        onDelete={onDelete}
-        isResolving={isResolving}
-        isDeleting={isDeleting}
-      />
+    <div className={`comment-thread space-y-1 ${isActive ? 'ring-2 ring-blue-500/30 rounded-lg' : ''}`}>
+      <div onClick={() => onCommentClick && onCommentClick(comment)} className="cursor-pointer">
+        <CommentItem
+          comment={comment}
+          onReply={() => setIsReplying(true)}
+          onResolve={onResolve}
+          onDelete={onDelete}
+          isResolving={isResolving}
+          isDeleting={isDeleting}
+        />
+      </div>
 
       {replies.length > 0 && (
         <div className="ml-4 pl-3 border-l-2 border-slate-100 dark:border-slate-800 space-y-1">

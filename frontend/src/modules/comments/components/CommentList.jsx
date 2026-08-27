@@ -13,6 +13,8 @@ import { CommentThread } from './CommentThread.jsx';
  * @param {Function} props.onDelete - Called with commentId
  * @param {number|null} props.resolvingCommentId - ID of comment being resolved
  * @param {number|null} props.deletingCommentId - ID of comment being deleted
+ * @param {Function} [props.onCommentClick] - Called when a comment is clicked
+ * @param {string|null} [props.activeCommentThreadId] - Active comment thread ID
  */
 export function CommentList({
   topLevelComments = [],
@@ -22,6 +24,8 @@ export function CommentList({
   onDelete,
   resolvingCommentId,
   deletingCommentId,
+  onCommentClick,
+  activeCommentThreadId,
 }) {
   if (topLevelComments.length === 0) {
     return (
@@ -63,6 +67,8 @@ export function CommentList({
           onDelete={onDelete}
           isResolving={resolvingCommentId === comment._id}
           isDeleting={deletingCommentId === comment._id}
+          onCommentClick={onCommentClick}
+          isActive={activeCommentThreadId === comment._id}
         />
       ))}
     </div>

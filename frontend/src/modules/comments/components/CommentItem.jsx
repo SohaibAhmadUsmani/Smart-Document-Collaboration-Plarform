@@ -25,12 +25,16 @@ export function CommentItem({
 }) {
   if (!comment) return null;
 
-  const author = typeof comment.author === 'object' ? comment.author : null;
+  const author =
+    comment.author && typeof comment.author === 'object'
+      ? comment.author
+      : null;
   const authorName = author?.name || 'Unknown user';
   const createdAt = comment.createdAt
     ? new Date(comment.createdAt).toLocaleString()
     : '';
   const isResolved = Boolean(comment.resolved);
+  const anchorQuote = comment.exactQuote || null;
 
   return (
     <div
@@ -63,6 +67,12 @@ export function CommentItem({
       <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">
         {comment.body}
       </p>
+
+      {anchorQuote && (
+        <div className="mt-2 rounded-md bg-amber-50/80 border-l-2 border-amber-400 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-950/30 dark:border-amber-600 dark:text-amber-200 italic">
+          "{anchorQuote}"
+        </div>
+      )}
 
       {showActions && (
         <div className="mt-2 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 pt-2">

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Comment } from '../models/Comment.js';
 import { DocumentModel } from '../../documents/document.model.js';
+import '../../auth/user.model.js';
 import { AppError } from '../../workspaces/utils/AppError.js';
 import { permissionService } from '../../workspaces/services/permissionService.js';
 import { notificationService } from '../../notifications/services/notificationService.js';

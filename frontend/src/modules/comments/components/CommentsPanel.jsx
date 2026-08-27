@@ -14,13 +14,17 @@ import { CommentComposer } from './CommentComposer.jsx';
  *
  * @param {Object} props
  * @param {string} props.documentId - The document to load comments for
- * @param {Object} [props.createAnchorPayload] - Optional anchor data from editor selection
+ * @param {Function|Object|null} [props.createAnchorPayload] - Anchor data from editor selection. Can be a function (called at submission time) or a plain object.
  * @param {Function} [props.onCommentCreated] - Called with the new comment after creation
+ * @param {Function} [props.onCommentClick] - Called when a comment is clicked (for navigation)
+ * @param {string|null} [props.activeCommentThreadId] - ID of the currently active comment thread in the editor
  */
 export function CommentsPanel({
   documentId,
   createAnchorPayload = null,
   onCommentCreated,
+  onCommentClick,
+  activeCommentThreadId,
 }) {
   const {
     topLevelComments,
@@ -39,10 +43,17 @@ export function CommentsPanel({
 
   const handleCreateComment = useCallback(
     async ({ body }) => {
+      // Resolve anchor payload: accept either a function (captures at submission time)
+      // or a plain object (for testing / static anchor data).
+      const anchor =
+        typeof createAnchorPayload === 'function'
+          ? createAnchorPayload()
+          : createAnchorPayload;
+
       const payload = {
         documentId,
         body,
-        ...(createAnchorPayload || {}),
+        ...(anchor || {}),
       };
       const created = await createComment(payload);
       if (created && onCommentCreated) {
@@ -112,6 +123,8 @@ export function CommentsPanel({
             onDelete={deleteComment}
             resolvingCommentId={resolvingCommentId}
             deletingCommentId={deletingCommentId}
+            onCommentClick={onCommentClick}
+            activeCommentThreadId={activeCommentThreadId}
           />
         )}
       </div>

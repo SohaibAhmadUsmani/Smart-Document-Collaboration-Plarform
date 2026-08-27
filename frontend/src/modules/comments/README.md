@@ -96,6 +96,8 @@ Main container that wires `useComments` to the component tree.
 | `documentId` | `string` | Document to load comments for |
 | `createAnchorPayload` | `Object\|null` | Optional anchor data merged into create payload |
 | `onCommentCreated` | `Function` | Called with the new comment after creation |
+| `onCommentClick` | `Function` | Called when a comment is clicked (for navigation) |
+| `activeCommentThreadId` | `string\|null` | ID of the active thread in the editor |
 
 ### CommentList
 
@@ -146,7 +148,7 @@ The Comments hook does NOT manage anchor state. The UI layer composes both:
 2. Pass that anchor data as `createAnchorPayload` to `CommentsPanel`
 3. After creation, use the returned comment `_id` with `attachCommentMark`
 
-### Planned integration flow
+### Integration flow
 
 ```
 User selects text in editor
@@ -156,9 +158,19 @@ User selects text in editor
   → useComments.createComment({ ...anchorData, body })
   → Backend returns comment._id
   → onCommentCreated calls attachCommentMark(comment._id)
+  → Editor highlights the text range with a CommentMark
 ```
 
-This flow is supported by the current component structure but not yet wired end-to-end. It will be completed in a future milestone.
+### Click-to-navigate
+
+When a comment is clicked in the sidebar, `onCommentClick` fires and:
+1. Sets `activeCommentThreadId` in editor state
+2. Finds the exact quote in the document text
+3. Scrolls to and selects the anchored text range
+
+### Reply behavior
+
+Replies do NOT create editor anchors. Only top-level comments receive anchor data via `createAnchorPayload`. The `CommentThread` component handles replies separately without passing anchor payloads.
 
 ## Backend
 
