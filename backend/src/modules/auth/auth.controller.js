@@ -111,3 +111,68 @@ export async function login(request, response) {
 export function logout(request, response) {
   return response.status(200).json({ message: 'Logged out successfully' });
 }
+export async function forgotPassword(request, response) {
+  try {
+    const { email } = request.body;
+
+    if (!email) {
+      return response.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+
+    // Always return a generic success message, even if the user doesn't exist —
+    // this prevents attackers from using this endpoint to check which emails are registered.
+    if (!user) {
+      return response.status(200).json({
+        message: 'If an account with that email exists, a reset link has been sent.'
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    await user.save();
+
+    const resetLink = `${env.clientOrigin}/reset-password/${resetToken}`;
+    console.log('--- PASSWORD RESET LINK (dev mode) ---');
+    console.log(`To: ${email}`);
+    console.log(resetLink);
+    console.log('----------------------------------------');
+
+    return response.status(200).json({
+      message: 'If an account with that email exists, a reset link has been sent.'
+    });
+  } catch (error) {
+    return response.status(500).json({ message: 'Failed to process request', error: error.message });
+  }
+}
+
+export async function resetPassword(request, response) {
+  try {
+    const { token } = request.params;
+    const { password } = request.body;
+
+    if (!password) {
+      return response.status(400).json({ message: 'New password is required' });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return response.status(400).json({ message: 'Invalid or expired reset link' });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    return response.status(200).json({ message: 'Password reset successfully' });
+  } catch (error) {
+    return response.status(500).json({ message: 'Failed to reset password', error: error.message });
+  }
+}
