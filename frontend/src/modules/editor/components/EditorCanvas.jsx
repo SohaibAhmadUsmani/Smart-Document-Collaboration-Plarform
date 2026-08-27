@@ -4,6 +4,7 @@ import { useDocumentEditor } from '../hooks/useDocumentEditor.js';
 import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useAutosave } from '../hooks/useAutosave.js';
 import { useCommentAnchors } from '../hooks/useCommentAnchors.js';
+import { plainTextOffsetToProseMirrorPos } from '../utils/plainTextOffsetToProseMirrorPos.js';
 import { TopGlobalHeader } from './TopGlobalHeader.jsx';
 import { DocSubHeader } from './DocSubHeader.jsx';
 import { FormattingToolbar } from './FormattingToolbar.jsx';
@@ -30,12 +31,17 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   const {
     captureSelectionAnchor,
     attachCommentMark,
+    resolveAnchor,
     activeCommentThreadId,
   } = useCommentAnchors(editorInstance);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
+
+  // Comment mark hydration state
+  const hydratedCommentIdsRef = useRef(new Set());
+  const [loadedComments, setLoadedComments] = useState(null);
 
   // Slash Command Menu state
   const [slashMenu, setSlashMenu] = useState({
@@ -124,6 +130,65 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     });
   }, [editorInstance, state.isReadOnly]);
 
+  // 6. Hydrate persisted comment marks when comments load and editor is ready
+  useEffect(() => {
+    if (!editorInstance || !loadedComments || loadedComments.length === 0) return;
+
+    try {
+      const hydratedIds = hydratedCommentIdsRef.current;
+      const fullText = editorInstance.getText();
+      const doc = editorInstance.state.doc;
+
+      for (const comment of loadedComments) {
+        // Skip already-hydrated comments
+        if (hydratedIds.has(comment._id)) continue;
+
+        // Only hydrate top-level comments (replies don't need marks)
+        if (comment.parentComment) continue;
+
+        // Only hydrate text_selection anchors
+        if (comment.anchorType !== 'text_selection') continue;
+
+        // Skip comments without anchor data
+        if (!comment.exactQuote) continue;
+
+        // Resolve the anchor position against current document text
+        const resolved = resolveAnchor({
+          from: comment.from,
+          to: comment.to,
+          exactQuote: comment.exactQuote,
+          prefixContext: comment.prefixContext || '',
+          suffixContext: comment.suffixContext || '',
+        });
+
+        if (!resolved) {
+          // Stale anchor — text was deleted or significantly altered. Skip gracefully.
+          hydratedIds.add(comment._id);
+          continue;
+        }
+
+        // Convert plain text offsets to ProseMirror positions for setTextSelection
+        const pmFrom = plainTextOffsetToProseMirrorPos(doc, resolved.from);
+        const pmTo = plainTextOffsetToProseMirrorPos(doc, resolved.to);
+
+        // Apply the comment mark at the resolved position
+        try {
+          editorInstance
+            .chain()
+            .setTextSelection({ from: pmFrom, to: pmTo })
+            .setMark('commentMark', { commentThreadId: comment._id, isActive: false })
+            .run();
+        } catch {
+          // Mark application failed (e.g. selection out of range). Skip gracefully.
+        }
+
+        hydratedIds.add(comment._id);
+      }
+    } catch {
+      // Hydration failed entirely — editor continues working without marks.
+    }
+  }, [editorInstance, loadedComments, resolveAnchor]);
+
   // 5. Global Keyboard Shortcuts Listener (Ctrl+/ for Help, F11 for Zen)
   useEffect(() => {
     const handleGlobalShortcuts = (e) => {
@@ -148,19 +213,22 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     setActiveCommentThread(comment._id);
 
     // Try to navigate using anchor data from the comment
-    const anchor = comment.anchor;
-    const targetQuote = anchor?.exactQuote || comment.exactQuote;
+    const targetQuote = comment.exactQuote;
     if (!targetQuote) return;
 
     const text = editorInstance.getText();
     const index = text.indexOf(targetQuote);
-    if (index !== -1) {
-      editorInstance
-        .chain()
-        .focus()
-        .setTextSelection({ from: index + 1, to: index + 1 + targetQuote.length })
-        .run();
-    }
+    if (index === -1) return;
+
+    const doc = editorInstance.state.doc;
+    const pmFrom = plainTextOffsetToProseMirrorPos(doc, index);
+    const pmTo = plainTextOffsetToProseMirrorPos(doc, index + targetQuote.length);
+
+    editorInstance
+      .chain()
+      .focus()
+      .setTextSelection({ from: pmFrom, to: pmTo })
+      .run();
   }, [editorInstance, setActiveCommentThread]);
 
   // Capture anchor data when creating a comment from editor selection.
@@ -174,8 +242,14 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   const handleCommentCreated = useCallback((comment) => {
     if (comment && comment._id) {
       attachCommentMark(comment._id);
+      hydratedCommentIdsRef.current.add(comment._id);
     }
   }, [attachCommentMark]);
+
+  // Called when CommentsPanel finishes loading comments (for mark hydration)
+  const handleCommentsLoaded = useCallback((comments) => {
+    setLoadedComments(comments);
+  }, []);
 
   // Handle Drag-and-Drop file ingestion
   const handleFileDrop = async (file) => {
@@ -275,6 +349,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
               onCommentCreated={handleCommentCreated}
               onCommentClick={handleCommentClick}
               activeCommentThreadId={activeCommentThreadId}
+              onCommentsLoaded={handleCommentsLoaded}
             />
           </div>
         )}

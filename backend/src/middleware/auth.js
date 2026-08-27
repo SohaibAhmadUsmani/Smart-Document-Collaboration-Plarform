@@ -25,7 +25,11 @@ export function requireAuth(req, res, next) {
         };
         return next();
       } catch (tokenErr) {
-        console.warn('[Auth Notice]: Invalid session token:', tokenErr.message);
+        // In dev mode, stale tokens are expected — the fallback user handles auth.
+        // Only log in production where invalid tokens are a security concern.
+        if (env.nodeEnv === 'production') {
+          console.warn('[Auth Notice]: Invalid session token:', tokenErr.message);
+        }
       }
     }
 

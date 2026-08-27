@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useComments } from '../hooks/useComments.js';
 import { CommentList } from './CommentList.jsx';
 import { CommentComposer } from './CommentComposer.jsx';
@@ -18,6 +18,7 @@ import { CommentComposer } from './CommentComposer.jsx';
  * @param {Function} [props.onCommentCreated] - Called with the new comment after creation
  * @param {Function} [props.onCommentClick] - Called when a comment is clicked (for navigation)
  * @param {string|null} [props.activeCommentThreadId] - ID of the currently active comment thread in the editor
+ * @param {Function} [props.onCommentsLoaded] - Called with the full comments array after fetch completes
  */
 export function CommentsPanel({
   documentId,
@@ -25,6 +26,7 @@ export function CommentsPanel({
   onCommentCreated,
   onCommentClick,
   activeCommentThreadId,
+  onCommentsLoaded,
 }) {
   const {
     topLevelComments,
@@ -34,12 +36,20 @@ export function CommentsPanel({
     resolvingCommentId,
     deletingCommentId,
     error,
+    comments,
     createComment,
     replyToComment,
     resolveComment,
     deleteComment,
     refreshComments,
   } = useComments(documentId);
+
+  // Notify parent when comments are loaded or updated (for mark hydration).
+  useEffect(() => {
+    if (onCommentsLoaded && !isLoading && comments.length > 0) {
+      onCommentsLoaded(comments);
+    }
+  }, [comments, isLoading, onCommentsLoaded]);
 
   const handleCreateComment = useCallback(
     async ({ body }) => {
@@ -66,9 +76,9 @@ export function CommentsPanel({
 
   const handleReply = useCallback(
     async (commentId, { body }) => {
-      return replyToComment(commentId, { body });
+      return replyToComment(commentId, { body, documentId });
     },
-    [replyToComment]
+    [replyToComment, documentId]
   );
 
   return (
