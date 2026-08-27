@@ -1,13 +1,31 @@
+/**
+ * @file documentBatch.service.js
+ * @description Batch processing service for bulk multi-document lifecycle operations.
+ * Executes batch archive, restore, move, tag, duplicate, and permanent deletion with failure reporting.
+ * @module backend/src/modules/documents/documentBatch.service
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh service ek sath multiple documents par batch operations chalane ke liye hai.
+ * Agar user 10 documents select karke move, tag ya delete kare toh yeh loop chala kar
+ * successful aur failed IDs ka audit breakdown return karti hai.
+ */
+
 import { DocumentModel } from './document.model.js';
 import * as documentService from './document.service.js';
 
 /**
- * Executes atomic batch operations across multiple documents.
+ * Executes atomic batch operations across an array of document IDs.
  *
- * @param {'archive' | 'restore' | 'move' | 'tag' | 'duplicate' | 'delete_permanent'} action
- * @param {string[]} documentIds - Array of document IDs
- * @param {Object} [payload] - Additional options (targetFolderId, tagsToAdd, tagsToRemove)
- * @param {string} userId - User ID performing the action
+ * [ROMAN URDU]:
+ * Batch action ('archive', 'restore', 'move', 'tag', 'duplicate', 'delete_permanent')
+ * ko har document ID par execute karta hai aur results ko `{ succeeded: [], failed: [] }`
+ * mein aggregate karke return karta hai.
+ *
+ * @param {'archive' | 'restore' | 'move' | 'tag' | 'duplicate' | 'delete_permanent'} action - Batch operation type
+ * @param {string[]} documentIds - Array of document IDs to process
+ * @param {Object} [payload={}] - Action-specific payload (targetFolderId, tagsToAdd, tagsToRemove)
+ * @param {string} userId - ID of authenticated user executing batch
  * @returns {Promise<{ succeeded: string[], failed: Array<{ id: string, reason: string }> }>}
  */
 export async function executeBatchOperation(action, documentIds, payload = {}, userId) {
@@ -52,7 +70,7 @@ export async function executeBatchOperation(action, documentIds, payload = {}, u
             failed.push({ id, reason: 'Document not found' });
             break;
           }
-          let updatedTags = [...doc.tags];
+          let updatedTags = [...(doc.tags || [])];
           if (Array.isArray(payload.tagsToAdd)) {
             updatedTags.push(...payload.tagsToAdd);
           }

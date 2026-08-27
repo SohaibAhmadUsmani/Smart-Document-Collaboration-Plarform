@@ -1,9 +1,26 @@
+/**
+ * @file useDocumentAttachments.js
+ * @description Custom hook for managing document file attachment metadata and embedding attachment blocks.
+ * @module frontend/src/modules/editor/hooks/useDocumentAttachments
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh hook document ke sath file attachments link karne aur editor ke andar file attachment block
+ * node insert karne ki functionality provide karta hai.
+ */
+
 import { useState, useCallback } from 'react';
 import { useDocumentEditor } from './useDocumentEditor.js';
 import { apiLinkAttachment, apiUnlinkAttachment } from '../services/documentApi.js';
 
 /**
  * Hook for managing document file attachment metadata linking.
+ *
+ * [ROMAN URDU]:
+ * Attachment list, linking state, errors, aur link/unlink functions return karta hai.
+ *
+ * @param {Object} editorInstance - TipTap editor instance
+ * @returns {{ attachments: Array, isLinking: boolean, linkError: string|null, linkFileAttachment: Function, unlinkFileAttachment: Function }}
  */
 export function useDocumentAttachments(editorInstance) {
   const { state, addAttachment, removeAttachment } = useDocumentEditor();
@@ -11,7 +28,10 @@ export function useDocumentAttachments(editorInstance) {
   const [linkError, setLinkError] = useState(null);
 
   /**
-   * Links an uploaded file to the document and optionally embeds an attachment node.
+   * Links an uploaded file to the document and optionally embeds an attachment node in the editor.
+   *
+   * [ROMAN URDU]:
+   * File metadata ko backend par link karta hai aur TipTap editor ke canvas par visual attachment card insert karta hai.
    */
   const linkFileAttachment = useCallback(
     async (filePayload, embedInEditor = true) => {
@@ -55,6 +75,9 @@ export function useDocumentAttachments(editorInstance) {
 
   /**
    * Unlinks an attachment from the document.
+   *
+   * [ROMAN URDU]:
+   * Document ke record se attachment ko remove karta hai.
    */
   const unlinkFileAttachment = useCallback(
     async (attachmentId) => {

@@ -1,10 +1,63 @@
 import mongoose from 'mongoose';
+import { isSafeUrl } from './document.utils.js';
+
+/**
+ * Whitelist of allowed MIME types for document attachments.
+ * Disallows SVG vectors, raw HTML, scripts, and executable binaries.
+ * [ROMAN URDU]: Attachment files ke liye safe MIME types ki whitelist jo dangerous scripts aur executable files ko block karti hai.
+ */
+export const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/json',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/zip',
+]);
+
+/**
+ * Checks whether an AST document tree exceeds the maximum recursion depth limit.
+ * [Issue #24]: Prevents call-stack recursion bombs and Denial of Service (DoS).
+ *
+ * [ROMAN URDU]: AST ke nesting levels ko check karta hai taake recursion bomb / stack overflow DoS attacks se bacha ja sakay (maximum 30 levels).
+ *
+ * @param {Object} node - AST node to check
+ * @param {number} [depth=1] - Current recursion depth
+ * @param {number} [maxDepth=30] - Maximum allowed depth threshold
+ * @returns {boolean} True if within safe limit, false if exceeded
+ */
+export function checkAstDepth(node, depth = 1, maxDepth = 30) {
+  if (!node || typeof node !== 'object') return true;
+  if (depth > maxDepth) return false;
+
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) {
+      if (!checkAstDepth(child, depth + 1, maxDepth)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
 
 /**
  * Validates request payload for document creation.
+ * [Issue #26]: Enforces title length cap (max 255 chars) and whitespace trimming.
+ * [Issue #24]: Enforces maximum AST recursion depth (max 30 levels).
+ *
+ * [ROMAN URDU]: Naya document bananay ki request payload ko validate karta hai.
  */
 export function validateCreateDocument(req, res, next) {
-  const { workspaceId, title, content, tags } = req.body;
+  let { workspaceId, title, content, tags } = req.body;
 
   if (!workspaceId || typeof workspaceId !== 'string' || !workspaceId.trim()) {
     return res.status(400).json({
@@ -14,36 +67,60 @@ export function validateCreateDocument(req, res, next) {
     });
   }
 
-  if (!title || typeof title !== 'string' || !title.trim()) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Document title is required.',
-    });
+  if (title !== undefined) {
+    if (typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Document title cannot be empty.',
+      });
+    }
+    title = title.trim();
+    if (title.length > 255) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Document title cannot exceed 255 characters.',
+      });
+    }
+    req.body.title = title;
   }
 
-  if (title.length > 255) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Document title cannot exceed 255 characters.',
-    });
+  if (content !== undefined && content !== null) {
+    if (typeof content !== 'object' || Array.isArray(content)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Document content must be a valid JSON AST structure.',
+      });
+    }
+
+    if (!checkAstDepth(content, 1, 30)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Document content AST exceeds maximum allowed nesting depth of 30 levels.',
+      });
+    }
   }
 
-  if (content && typeof content !== 'object') {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Document content must be a valid JSON AST structure.',
-    });
-  }
+  if (tags !== undefined) {
+    if (!Array.isArray(tags)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Tags must be provided as an array of strings.',
+      });
+    }
 
-  if (tags && !Array.isArray(tags)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Tags must be provided as an array of strings.',
-    });
+    const invalidTag = tags.find((t) => typeof t !== 'string' || !t.trim());
+    if (invalidTag !== undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'All tags must be non-empty strings.',
+      });
+    }
   }
 
   next();
@@ -51,24 +128,30 @@ export function validateCreateDocument(req, res, next) {
 
 /**
  * Validates request payload for updating document metadata.
+ * [Issue #26]: Enforces title cap (max 255 chars) and trims whitespace.
+ *
+ * [ROMAN URDU]: Document metadata (title, icon, cover image, folder) update request ko validate karta hai.
  */
 export function validateUpdateMetadata(req, res, next) {
-  const { title, icon, coverImage, folderId } = req.body;
+  let { title, icon, coverImage, folderId } = req.body;
 
-  if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Title must be a non-empty string.',
-    });
-  }
-
-  if (title && title.length > 255) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Title cannot exceed 255 characters.',
-    });
+  if (title !== undefined) {
+    if (typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Title must be a non-empty string.',
+      });
+    }
+    title = title.trim();
+    if (title.length > 255) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Title cannot exceed 255 characters.',
+      });
+    }
+    req.body.title = title;
   }
 
   if (icon !== undefined && typeof icon !== 'string' && icon !== null) {
@@ -79,12 +162,14 @@ export function validateUpdateMetadata(req, res, next) {
     });
   }
 
-  if (coverImage !== undefined && typeof coverImage !== 'string' && coverImage !== null) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Cover image must be a URL string or null.',
-    });
+  if (coverImage !== undefined && coverImage !== null && coverImage !== '') {
+    if (typeof coverImage !== 'string' || !isSafeUrl(coverImage)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Cover image must be a valid safe URL string (http, https, safe base64) or null.',
+      });
+    }
   }
 
   if (folderId !== undefined && typeof folderId !== 'string' && folderId !== null) {
@@ -100,18 +185,28 @@ export function validateUpdateMetadata(req, res, next) {
 
 export const validateUpdateDocument = validateUpdateMetadata;
 
-
 /**
  * Validates request payload for autosaving document content.
+ * [Issue #24]: Enforces maximum recursion depth (max 30 levels).
+ *
+ * [ROMAN URDU]: Document rich-text autosave request ko validate karta hai aur nested depth ko check karta hai.
  */
 export function validateAutosave(req, res, next) {
-  const { content, plainText } = req.body;
+  const { content, plainText, baseVersion } = req.body;
 
   if (!content || typeof content !== 'object' || Array.isArray(content)) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
       message: 'Autosave requires a valid content object (AST/JSON).',
+    });
+  }
+
+  if (!checkAstDepth(content, 1, 30)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Document content AST exceeds maximum allowed nesting depth of 30 levels.',
     });
   }
 
@@ -123,11 +218,23 @@ export function validateAutosave(req, res, next) {
     });
   }
 
+  if (baseVersion !== undefined && baseVersion !== null) {
+    const parsed = Number(baseVersion);
+    if (isNaN(parsed) || parsed < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'baseVersion must be a positive integer.',
+      });
+    }
+  }
+
   next();
 }
 
 /**
  * Validates request payload for updating tags.
+ * [ROMAN URDU]: Tags update request ko validate karta hai.
  */
 export function validateTags(req, res, next) {
   const { tags } = req.body;
@@ -154,11 +261,15 @@ export function validateTags(req, res, next) {
 
 /**
  * Validates request payload for linking an attachment.
+ * [Issue #30]: Enforces MIME type whitelist.
+ * [Issue #6]: Validates downloadUrl safe schemes.
+ *
+ * [ROMAN URDU]: File attachment linking request ko validate karta hai aur safe MIME types/URLs check karta hai.
  */
 export function validateAttachment(req, res, next) {
-  const { fileId, fileName, fileSize, mimeType, storageKey, downloadUrl } = req.body;
+  const { fileId, fileName, fileSize, mimeType, downloadUrl } = req.body;
 
-  if (!fileId || typeof fileId !== 'string') {
+  if (!fileId || typeof fileId !== 'string' || !fileId.trim()) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
@@ -166,7 +277,7 @@ export function validateAttachment(req, res, next) {
     });
   }
 
-  if (!fileName || typeof fileName !== 'string') {
+  if (!fileName || typeof fileName !== 'string' || !fileName.trim()) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
@@ -174,11 +285,35 @@ export function validateAttachment(req, res, next) {
     });
   }
 
-  if (fileSize !== undefined && typeof fileSize !== 'number') {
+  if (fileName.trim().length > 255) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'fileSize must be a valid number.',
+      message: 'fileName cannot exceed 255 characters.',
+    });
+  }
+
+  if (fileSize !== undefined && (typeof fileSize !== 'number' || fileSize < 0)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'fileSize must be a valid non-negative number.',
+    });
+  }
+
+  if (!mimeType || typeof mimeType !== 'string' || !ALLOWED_ATTACHMENT_MIME_TYPES.has(mimeType.toLowerCase().trim())) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: `Unsupported or unsafe attachment MIME type: '${mimeType}'. Allowed types include common images, pdf, plain text, markdown, csv, json, documents, and zip.`,
+    });
+  }
+
+  if (downloadUrl !== undefined && typeof downloadUrl === 'string' && !isSafeUrl(downloadUrl)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'downloadUrl contains an unsafe or unsupported protocol scheme.',
     });
   }
 
@@ -187,11 +322,12 @@ export function validateAttachment(req, res, next) {
 
 /**
  * Validates deep AST content search parameters.
+ * [ROMAN URDU]: AST deep content search parameters ko validate karta hai.
  */
 export function validateAstSearch(req, res, next) {
   const { workspaceId, query } = req.body;
 
-  if (!workspaceId || typeof workspaceId !== 'string') {
+  if (!workspaceId || typeof workspaceId !== 'string' || !workspaceId.trim()) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
@@ -207,11 +343,20 @@ export function validateAstSearch(req, res, next) {
     });
   }
 
+  if (query.trim().length > 200) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Search query cannot exceed 200 characters to prevent ReDoS.',
+    });
+  }
+
   next();
 }
 
 /**
  * Validates batch operation requests across multiple documents.
+ * [ROMAN URDU]: Multi-document batch operations payload ko validate karta hai.
  */
 export function validateBatchOperation(req, res, next) {
   const { documentIds, action, payload } = req.body;
@@ -254,15 +399,29 @@ export function validateBatchOperation(req, res, next) {
 
 /**
  * Validates MongoDB ObjectId format or mock doc ID for route parameter :id.
+ * [Issue #27]: Strict validation on route :id parameters.
+ *
+ * [ROMAN URDU]: Route parameter :id ko strictly validate karta hai ke wo valid 24-character hexadecimal ObjectId ya valid mock doc format hai.
  */
 export function validateDocumentId(req, res, next) {
   const { id } = req.params;
 
-  if (!id || (typeof id !== 'string') || (!mongoose.isValidObjectId(id) && !id.startsWith('doc_'))) {
+  if (!id || typeof id !== 'string') {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: `Invalid document ID format: '${id}'.`,
+      message: 'Document ID parameter is required.',
+    });
+  }
+
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(id) || mongoose.isValidObjectId(id);
+  const isMockDocId = /^doc_[a-zA-Z0-9_-]+$/.test(id);
+
+  if (!isObjectId && !isMockDocId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: `Invalid document ID format: '${id}'. Must be a 24-character hexadecimal ObjectId.`,
     });
   }
 

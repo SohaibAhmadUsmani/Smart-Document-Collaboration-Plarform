@@ -1,3 +1,18 @@
+/**
+ * @file document.service.js
+ * @description Core business logic and database service layer for documents.
+ * Handles document creation, OCC-backed autosave, metadata editing, tagging,
+ * attachments, version checkpoints, trash retention, duplication, and exports.
+ * @module backend/src/modules/documents/document.service
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh file DocSync Pro ke document module ka core service layer hai.
+ * Isme database queries, atomic optimistic concurrency control (OCC autosave),
+ * 25th-edit snapshot milestone events, 30-day trash lifecycle, tag normalization,
+ * aur document export engine handle kiya gaya hai.
+ */
+
 import crypto from 'crypto';
 import { DocumentModel } from './document.model.js';
 import { documentEvents, DOCUMENT_EVENTS } from './document.events.js';
@@ -10,15 +25,36 @@ import {
 } from './document.utils.js';
 import { getTemplateById } from './documentTemplates.js';
 
-
 const TRASH_RETENTION_DAYS = 30;
 
 /**
- * Creates a new document in the database.
+ * Normalizes, trims, and deduplicates an array of tag strings.
  *
- * @param {Object} documentData - Data for the new document.
- * @param {string} userId - ID of the authenticated user creating the document.
- * @returns {Promise<Object>} Created document.
+ * [ROMAN URDU]:
+ * Tags array ko lowercase, trim, deduplicate (Set ke zariye) aur max 30 characters
+ * tak sanitize karta hai taake database queries clean aur consistent rahein.
+ *
+ * @param {string[]} [tags=[]] - Raw tags input
+ * @returns {string[]} Clean deduplicated tags array
+ */
+function cleanTagsList(tags = []) {
+  if (!Array.isArray(tags)) return [];
+  return Array.from(
+    new Set(tags.map((t) => String(t).trim().toLowerCase().slice(0, 30)).filter(Boolean))
+  );
+}
+
+/**
+ * Creates a new document in the database, applying starter templates if specified.
+ *
+ * [ROMAN URDU]:
+ * Naya document create karta hai. Agar `templateId` diya gaya ho toh preset template ka
+ * content aur structure load karta hai, block IDs inject karta hai, XSS sanitize karta hai,
+ * aur `document.created` event emit karta hai.
+ *
+ * @param {Object} documentData - Data payload for the new document
+ * @param {string} userId - ID of the authenticated user creating the document
+ * @returns {Promise<Object>} Created document Mongoose document
  */
 export async function createDocument(documentData, userId) {
   let template = null;
@@ -26,13 +62,12 @@ export async function createDocument(documentData, userId) {
     template = getTemplateById(documentData.templateId);
   }
 
-  const rawContent = documentData.content || (template ? template.content : null) || {
+  const rawContent = documentData.content || template?.content || {
     type: 'doc',
     content: [{ type: 'paragraph', attrs: { blockId: `block_${crypto.randomUUID()}` }, content: [] }],
   };
 
   const content = sanitizeDocumentAst(ensureBlockIdsInAst(rawContent));
-
   const plainText = documentData.plainText !== undefined
     ? documentData.plainText
     : extractPlainTextFromAst(content);
@@ -41,17 +76,17 @@ export async function createDocument(documentData, userId) {
     ? documentData.tags
     : (template?.tags || []);
 
-  const cleanTags = Array.from(new Set(initialTags.map((t) => String(t).trim().toLowerCase().slice(0, 30)).filter(Boolean)));
+  const tags = cleanTagsList(initialTags);
 
   const newDocument = new DocumentModel({
     workspaceId: documentData.workspaceId,
     folderId: documentData.folderId || null,
-    title: documentData.title || (template ? template.title : 'Untitled Document'),
+    title: documentData.title || template?.title || 'Untitled Document',
     content,
     plainText,
-    icon: documentData.icon || (template ? template.icon : null),
+    icon: documentData.icon || template?.icon || null,
     coverImage: documentData.coverImage || null,
-    tags: cleanTags,
+    tags,
     favoritedBy: [],
     attachments: [],
     createdBy: userId,
@@ -69,20 +104,26 @@ export async function createDocument(documentData, userId) {
     workspaceId: saved.workspaceId,
     folderId: saved.folderId,
     title: saved.title,
+    actorId: userId,
     createdBy: userId,
-    timestamp: saved.createdAt,
+    userId,
+    timestamp: saved.createdAt || new Date(),
   });
 
   return saved;
 }
 
-
 /**
- * Retrieves a document by its ID.
+ * Retrieves an active document by its MongoDB ObjectId.
  *
- * @param {string} documentId - ID of the document.
- * @param {Object} [options] - Additional query options.
- * @returns {Promise<Object|null>} Found document or null.
+ * [ROMAN URDU]:
+ * Document ID ke zariye record fetch karta hai. Default tor par archived/trash documents
+ * exclude hote hain jab tak `includeArchived` option true na ho.
+ *
+ * @param {string} documentId - ObjectId of the document
+ * @param {Object} [options={}] - Additional query options
+ * @param {boolean} [options.includeArchived=false] - If true, returns even archived documents
+ * @returns {Promise<Object|null>} Found document or null
  */
 export async function getDocumentById(documentId, options = {}) {
   const query = { _id: documentId };
@@ -95,11 +136,16 @@ export async function getDocumentById(documentId, options = {}) {
 }
 
 /**
- * Lists documents in a workspace, with optional folder, tag, favorite, search, and sort filters.
+ * Lists documents in a workspace with folder, tag, favorite, search, and sort filters.
  *
- * @param {string} workspaceId - Workspace ID.
- * @param {Object} filters - Query parameters
- * @param {string} [userId] - Optional current user ID for favorited filter
+ * [ROMAN URDU]:
+ * Workspace ke documents ko filter aur pagination ke sath list karta hai. Tag, folderId,
+ * favoritedBy, aur title search filters support karta hai. Performance ke liye `.lean()`
+ * aur indexed projection use karta hai.
+ *
+ * @param {string} workspaceId - Workspace ID
+ * @param {Object} [filters={}] - Query filters (folderId, tag, favorited, search, sortBy, page, limit)
+ * @param {string|null} [userId=null] - Optional current user ID for favorited filter
  * @returns {Promise<{ documents: Array, total: number, page: number, limit: number }>}
  */
 export async function listDocuments(workspaceId, filters = {}, userId = null) {
@@ -142,29 +188,35 @@ export async function listDocuments(workspaceId, filters = {}, userId = null) {
   if (sortBy === 'title_asc') sortOption = { title: 1 };
   if (sortBy === 'title_desc') sortOption = { title: -1 };
 
-  const skip = (Math.max(1, page) - 1) * Math.min(100, limit);
+  const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+  const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+  const skip = (parsedPage - 1) * parsedLimit;
 
   const [documents, total] = await Promise.all([
     DocumentModel.find(query)
       .select('id workspaceId folderId title icon coverImage tags favoritedBy attachments createdBy lastModifiedBy updatedAt createdAt isArchived version')
       .sort(sortOption)
       .skip(skip)
-      .limit(Math.min(100, limit))
+      .limit(parsedLimit)
       .lean()
       .exec(),
     DocumentModel.countDocuments(query).exec(),
   ]);
 
-  return { documents, total, page: Number(page), limit: Number(limit) };
+  return { documents, total, page: parsedPage, limit: parsedLimit };
 }
 
 /**
  * Updates document metadata (title, icon, coverImage, folderId).
  *
- * @param {string} documentId - Document ID.
- * @param {Object} updateData - Metadata fields to update.
- * @param {string} userId - ID of the user performing the update.
- * @returns {Promise<Object|null>} Updated document.
+ * [ROMAN URDU]:
+ * Document ke metadata (title, icon, cover, folderId) ko update karta hai aur
+ * `METADATA_UPDATED` domain event emit karta hai.
+ *
+ * @param {string} documentId - Document ID
+ * @param {Object} updateData - Metadata fields to update
+ * @param {string} userId - ID of the user performing the update
+ * @returns {Promise<Object|null>} Updated document or null
  */
 export async function updateDocumentMetadata(documentId, updateData, userId) {
   const allowedUpdates = {};
@@ -186,9 +238,11 @@ export async function updateDocumentMetadata(documentId, updateData, userId) {
     documentEvents.emit(DOCUMENT_EVENTS.METADATA_UPDATED, {
       documentId: updated.id,
       workspaceId: updated.workspaceId,
+      title: updated.title,
       updates: allowedUpdates,
       actorId: userId,
-      timestamp: updated.updatedAt,
+      userId,
+      timestamp: updated.updatedAt || new Date(),
     });
   }
 
@@ -196,13 +250,19 @@ export async function updateDocumentMetadata(documentId, updateData, userId) {
 }
 
 /**
- * Autosaves the document rich-text JSON content and plain text.
- * Increments the document version for sync tracking.
+ * Autosaves document content with atomic Optimistic Concurrency Control (OCC).
+ * Increments version and emits milestone snapshots every 25 edits.
  *
- * @param {string} documentId - Document ID.
- * @param {Object} contentPayload - Content AST object and optional plainText string.
- * @param {string} userId - ID of the user editing the document.
- * @returns {Promise<Object|null>} Updated document.
+ * [ROMAN URDU]:
+ * Yeh function atomic OCC use karta hai. Database mein baseVersion check hota hai;
+ * agar kisi aur ne document update kar diya ho toh conflict object return hota hai (409 status ke liye)
+ * taake data overwrite na ho. Agar `contentPayload.force` true ho toh OCC check bypass hota hai
+ * (Conflict Resolution Option 1: Keep My Local Version). Har 25 edits par snapshot milestone event trigger hota hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {Object} contentPayload - { content, plainText, baseVersion, force }
+ * @param {string} userId - ID of the user editing the document
+ * @returns {Promise<Object|null>} Updated document or conflict descriptor
  */
 export async function autosaveDocumentContent(documentId, contentPayload, userId) {
   const content = sanitizeDocumentAst(ensureBlockIdsInAst(contentPayload.content));
@@ -211,14 +271,15 @@ export async function autosaveDocumentContent(documentId, contentPayload, userId
     : extractPlainTextFromAst(content);
 
   const previousDoc = await DocumentModel.findOne({ _id: documentId, isArchived: false })
-    .select('version snapshotCheckpointVersion title content plainText updatedAt')
+    .select('version snapshotCheckpointVersion title content plainText updatedAt workspaceId')
     .lean()
     .exec();
 
   if (!previousDoc) return null;
 
-  // Optimistic Concurrency Control (OCC)
-  if (contentPayload.baseVersion !== undefined && contentPayload.baseVersion !== null) {
+  // Optimistic Concurrency Control (OCC) Check
+  // [ROMAN URDU]: Agar force flag true ho toh OCC version mismatch check bypass ho jata hai (Option 1: Keep My Local Version)
+  if (contentPayload.baseVersion !== undefined && contentPayload.baseVersion !== null && !contentPayload.force) {
     if (previousDoc.version !== Number(contentPayload.baseVersion)) {
       return {
         conflict: true,
@@ -242,12 +303,15 @@ export async function autosaveDocumentContent(documentId, contentPayload, userId
     documentEvents.emit(DOCUMENT_EVENTS.CONTENT_SAVED, {
       documentId: updated.id,
       workspaceId: updated.workspaceId,
+      title: updated.title,
       version: updated.version,
       previousVersion: previousDoc.version,
       content: updated.content,
       plainText: updated.plainText,
+      actorId: userId,
       modifiedBy: userId,
-      timestamp: updated.updatedAt,
+      userId,
+      timestamp: updated.updatedAt || new Date(),
     });
 
     // Milestone Snapshot Checkpoint (Emit every 25 edits)
@@ -259,8 +323,10 @@ export async function autosaveDocumentContent(documentId, contentPayload, userId
         title: updated.title,
         content: updated.content,
         plainText: updated.plainText,
+        actorId: userId,
         createdBy: userId,
-        timestamp: updated.updatedAt,
+        userId,
+        timestamp: updated.updatedAt || new Date(),
       });
     }
   }
@@ -268,13 +334,16 @@ export async function autosaveDocumentContent(documentId, contentPayload, userId
   return updated;
 }
 
-
 /**
- * Toggles a user's favorite star status on a document.
+ * Toggles a user's favorite / starred status on a document.
  *
- * @param {string} documentId
- * @param {string} userId
- * @returns {Promise<{ isFavorited: boolean, favoriteCount: number }|null>}
+ * [ROMAN URDU]:
+ * Document par user ka star/favorite toggle karta hai (`$pull` ya `$addToSet`).
+ * Updated count aur boolean status return karta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {string} userId - User ID toggling star
+ * @returns {Promise<{ documentId: string, isFavorited: boolean, favoriteCount: number }|null>}
  */
 export async function toggleFavoriteDocument(documentId, userId) {
   const doc = await DocumentModel.findOne({ _id: documentId, isArchived: false });
@@ -290,9 +359,13 @@ export async function toggleFavoriteDocument(documentId, userId) {
   }).exec();
 
   documentEvents.emit(DOCUMENT_EVENTS.FAVORITE_TOGGLED, {
-    documentId,
+    documentId: doc.id,
+    workspaceId: doc.workspaceId,
+    title: doc.title,
+    actorId: userId,
     userId,
     isFavorited: !isFavorited,
+    timestamp: new Date(),
   });
 
   return {
@@ -303,17 +376,18 @@ export async function toggleFavoriteDocument(documentId, userId) {
 }
 
 /**
- * Updates document tags with normalization.
+ * Updates document tags with automatic sanitization and normalization.
  *
- * @param {string} documentId
- * @param {string[]} tags
- * @param {string} userId
- * @returns {Promise<Object|null>}
+ * [ROMAN URDU]:
+ * Document ke tags ko normalize aur deduplicate karke update karta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {string[]} tags - Array of new tags
+ * @param {string} userId - ID of the user updating tags
+ * @returns {Promise<Object|null>} Updated document
  */
 export async function updateDocumentTags(documentId, tags, userId) {
-  const cleanTags = Array.isArray(tags)
-    ? Array.from(new Set(tags.map((t) => String(t).trim().toLowerCase().slice(0, 30)).filter(Boolean)))
-    : [];
+  const cleanTags = cleanTagsList(tags);
 
   const updated = await DocumentModel.findOneAndUpdate(
     { _id: documentId, isArchived: false },
@@ -323,9 +397,13 @@ export async function updateDocumentTags(documentId, tags, userId) {
 
   if (updated) {
     documentEvents.emit(DOCUMENT_EVENTS.TAGS_UPDATED, {
-      documentId,
+      documentId: updated.id,
+      workspaceId: updated.workspaceId,
+      title: updated.title,
       tags: cleanTags,
       actorId: userId,
+      userId,
+      timestamp: updated.updatedAt || new Date(),
     });
   }
 
@@ -333,9 +411,13 @@ export async function updateDocumentTags(documentId, tags, userId) {
 }
 
 /**
- * Aggregates all unique tags across a workspace with their usage count.
+ * Aggregates all unique tags across a workspace with their respective document counts.
  *
- * @param {string} workspaceId
+ * [ROMAN URDU]:
+ * MongoDB aggregation pipeline chala kar workspace ke tamam unique tags aur unki
+ * usage frequency count karta hai.
+ *
+ * @param {string} workspaceId - Workspace ID
  * @returns {Promise<Array<{ tag: string, count: number }>>}
  */
 export async function getWorkspaceTags(workspaceId) {
@@ -349,11 +431,14 @@ export async function getWorkspaceTags(workspaceId) {
 }
 
 /**
- * Links a file attachment record to a document or specific node block.
+ * Links a file attachment record to a document or a specific block node anchor.
  *
- * @param {string} documentId
- * @param {Object} attachmentPayload
- * @param {string} userId
+ * [ROMAN URDU]:
+ * Document mein file attachment record add karta hai aur `ATTACHMENT_LINKED` event emit karta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {Object} attachmentPayload - Attachment details
+ * @param {string} userId - Uploader user ID
  * @returns {Promise<{ updated: Object, attachment: Object }|null>}
  */
 export async function addDocumentAttachment(documentId, attachmentPayload, userId) {
@@ -382,9 +467,13 @@ export async function addDocumentAttachment(documentId, attachmentPayload, userI
   if (!updated) return null;
 
   documentEvents.emit(DOCUMENT_EVENTS.ATTACHMENT_LINKED, {
-    documentId,
+    documentId: updated.id,
+    workspaceId: updated.workspaceId,
+    title: updated.title,
     attachment,
     actorId: userId,
+    userId,
+    timestamp: new Date(),
   });
 
   return { updated, attachment };
@@ -393,10 +482,13 @@ export async function addDocumentAttachment(documentId, attachmentPayload, userI
 /**
  * Unlinks an attachment from a document.
  *
- * @param {string} documentId
- * @param {string} attachmentId
- * @param {string} userId
- * @returns {Promise<Object|null>}
+ * [ROMAN URDU]:
+ * Document ke attachments array se specified attachment ko remove karta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {string} attachmentId - Attachment UUID to remove
+ * @param {string} userId - User ID removing attachment
+ * @returns {Promise<Object|null>} Updated document
  */
 export async function removeDocumentAttachment(documentId, attachmentId, userId) {
   const updated = await DocumentModel.findOneAndUpdate(
@@ -410,9 +502,13 @@ export async function removeDocumentAttachment(documentId, attachmentId, userId)
 
   if (updated) {
     documentEvents.emit(DOCUMENT_EVENTS.ATTACHMENT_UNLINKED, {
-      documentId,
+      documentId: updated.id,
+      workspaceId: updated.workspaceId,
+      title: updated.title,
       attachmentId,
       actorId: userId,
+      userId,
+      timestamp: new Date(),
     });
   }
 
@@ -420,11 +516,15 @@ export async function removeDocumentAttachment(documentId, attachmentId, userId)
 }
 
 /**
- * Duplicates an existing document.
+ * Duplicates an existing document with a new title prefix and clean version counter.
  *
- * @param {string} documentId
- * @param {string} userId
- * @returns {Promise<Object|null>}
+ * [ROMAN URDU]:
+ * Mojooda document ka clone banata hai ("Copy of [Title]"), fresh block IDs inject karta hai,
+ * version 1 se restart karta hai, aur `DUPLICATED` event emit karta hai.
+ *
+ * @param {string} documentId - Original document ID to duplicate
+ * @param {string} userId - User ID creating the duplicate
+ * @returns {Promise<Object|null>} Newly created cloned document
  */
 export async function duplicateDocument(documentId, userId) {
   const original = await DocumentModel.findOne({ _id: documentId, isArchived: false }).lean().exec();
@@ -453,19 +553,27 @@ export async function duplicateDocument(documentId, userId) {
   documentEvents.emit(DOCUMENT_EVENTS.DUPLICATED, {
     originalDocumentId: documentId,
     newDocumentId: saved.id,
+    documentId: saved.id,
     workspaceId: saved.workspaceId,
+    title: saved.title,
     actorId: userId,
+    userId,
+    timestamp: saved.createdAt || new Date(),
   });
 
   return saved;
 }
 
 /**
- * Exports document content in requested format (markdown, json, text).
+ * Exports document content in the requested format (markdown, json, text).
  *
- * @param {string} documentId
- * @param {string} [format='markdown']
- * @returns {Promise<{ filename: string, mimeType: string, content: string }|null>}
+ * [ROMAN URDU]:
+ * Document ko requested format (Markdown, JSON, Plain Text) mein convert karke
+ * download payload (filename, mimeType, content) return karta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {string} [format='markdown'] - Desired format ('markdown' | 'json' | 'text')
+ * @returns {Promise<{ filename: string, mimeType: string, content: string }|null>} Export descriptor
  */
 export async function exportDocument(documentId, format = 'markdown') {
   const document = await DocumentModel.findOne({ _id: documentId, isArchived: false }).lean().exec();
@@ -498,10 +606,13 @@ export async function exportDocument(documentId, format = 'markdown') {
 }
 
 /**
- * Computes word/character statistics for a document.
+ * Computes word, character, and reading time statistics for a document.
  *
- * @param {string} documentId
- * @returns {Promise<Object|null>}
+ * [ROMAN URDU]:
+ * Document ke plain text se live stats calculate karta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @returns {Promise<Object|null>} Statistics payload
  */
 export async function getDocumentStats(documentId) {
   const document = await DocumentModel.findOne({ _id: documentId, isArchived: false })
@@ -522,11 +633,15 @@ export async function getDocumentStats(documentId) {
 }
 
 /**
- * Moves document to trash with 30-day auto-purge retention schedule.
+ * Moves a document to the trash bin with a 30-day auto-purge retention schedule.
  *
- * @param {string} documentId
- * @param {string} userId
- * @returns {Promise<Object|null>}
+ * [ROMAN URDU]:
+ * Document ko soft-delete (trash) mein bhejta hai. `scheduledPermanentDeletionAt` mein
+ * 30 days aage ki date set hoti hai jo MongoDB TTL index se automatically purge ho sakti hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {string} userId - User ID deleting the document
+ * @returns {Promise<Object|null>} Archived document
  */
 export async function moveToTrash(documentId, userId) {
   const scheduledPurgeDate = new Date();
@@ -548,20 +663,26 @@ export async function moveToTrash(documentId, userId) {
   documentEvents.emit(DOCUMENT_EVENTS.ARCHIVED, {
     documentId: saved.id,
     workspaceId: saved.workspaceId,
+    title: saved.title,
     actorId: userId,
-    timestamp: saved.deletedAt,
+    userId,
+    timestamp: saved.deletedAt || new Date(),
   });
 
   return saved;
 }
 
 /**
- * Restores document from trash with smart folder validation.
+ * Restores an archived document from the trash bin back to its original or target folder.
  *
- * @param {string} documentId
- * @param {string} userId
- * @param {string|null} [targetFolderId=null]
- * @returns {Promise<Object|null>}
+ * [ROMAN URDU]:
+ * Trash se document ko restore karta hai, deletion dates clear karta hai, aur
+ * document ko uske original folder ya specified folder mein wapas bhejta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {string} userId - User ID restoring the document
+ * @param {string|null} [targetFolderId=null] - Optional new folder destination
+ * @returns {Promise<Object|null>} Restored document
  */
 export async function restoreFromTrash(documentId, userId, targetFolderId = null) {
   const doc = await DocumentModel.findOne({ _id: documentId, isArchived: true });
@@ -581,7 +702,9 @@ export async function restoreFromTrash(documentId, userId, targetFolderId = null
     documentId: restored.id,
     workspaceId: restored.workspaceId,
     folderId: restored.folderId,
+    title: restored.title,
     actorId: userId,
+    userId,
     timestamp: new Date(),
   });
 
@@ -589,46 +712,56 @@ export async function restoreFromTrash(documentId, userId, targetFolderId = null
 }
 
 /**
- * Lists archived documents currently in trash for a workspace.
+ * Lists archived documents currently in the trash for a workspace.
  *
- * @param {string} workspaceId
- * @param {Object} [pagination]
- * @returns {Promise<{ documents: Array, total: number }>}
+ * [ROMAN URDU]:
+ * Workspace ke trash mein mojood documents list karta hai pagination ke sath.
+ *
+ * @param {string} workspaceId - Workspace ID
+ * @param {Object} [pagination={}] - { page, limit }
+ * @returns {Promise<{ documents: Array, total: number, page: number, limit: number }>}
  */
 export async function listTrashDocuments(workspaceId, pagination = {}) {
-  const { page = 1, limit = 50 } = pagination;
+  const page = Math.max(1, parseInt(pagination.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(pagination.limit, 10) || 50));
   const query = { workspaceId, isArchived: true };
-  const skip = (Math.max(1, page) - 1) * Math.min(100, limit);
+  const skip = (page - 1) * limit;
 
   const [documents, total] = await Promise.all([
     DocumentModel.find(query)
       .select('id title icon tags deletedAt deletedBy scheduledPermanentDeletionAt previousFolderId updatedAt createdAt')
       .sort({ deletedAt: -1 })
       .skip(skip)
-      .limit(Math.min(100, limit))
+      .limit(limit)
       .lean()
       .exec(),
     DocumentModel.countDocuments(query).exec(),
   ]);
 
-  return { documents, total, page: Number(page), limit: Number(limit) };
+  return { documents, total, page, limit };
 }
 
 /**
- * Permanently deletes a single document from database.
+ * Permanently deletes a single document from the database.
  *
- * @param {string} documentId
- * @param {string} userId
- * @returns {Promise<Object|null>}
+ * [ROMAN URDU]:
+ * Trash mein mojood document ko database se mukammal aur permanently delete karta hai.
+ *
+ * @param {string} documentId - Document ObjectId
+ * @param {string} userId - User ID authorizing permanent purge
+ * @returns {Promise<Object|null>} Deleted document record
  */
 export async function permanentlyDeleteDocument(documentId, userId) {
   const doc = await DocumentModel.findOneAndDelete({ _id: documentId, isArchived: true });
 
   if (doc) {
     documentEvents.emit(DOCUMENT_EVENTS.PERMANENTLY_DELETED, {
-      documentId,
+      documentId: doc.id || documentId,
       workspaceId: doc.workspaceId,
+      title: doc.title || 'Untitled Document',
       actorId: userId,
+      userId,
+      timestamp: new Date(),
     });
   }
 
@@ -638,12 +771,14 @@ export async function permanentlyDeleteDocument(documentId, userId) {
 /**
  * Empties all trash documents for a workspace.
  *
- * @param {string} workspaceId
- * @param {string} userId
+ * [ROMAN URDU]:
+ * Kisi workspace ke tamam archived/trash documents ko aik sath permanently delete karta hai.
+ *
+ * @param {string} workspaceId - Workspace ID
+ * @param {string} userId - User ID performing the action
  * @returns {Promise<{ deletedCount: number }>}
  */
 export async function emptyWorkspaceTrash(workspaceId, userId) {
   const result = await DocumentModel.deleteMany({ workspaceId, isArchived: true });
-
   return { deletedCount: result.deletedCount };
 }

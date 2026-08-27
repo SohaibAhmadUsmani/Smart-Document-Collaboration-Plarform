@@ -1,20 +1,35 @@
+/**
+ * @file EditorHeader.jsx
+ * @description Top header bar for the document editor with title editing, autosave indicator, and action buttons.
+ * @module frontend/src/modules/editor/components/EditorHeader
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh document editor ka top header bar hai jisme document title edit karne ka input,
+ * autosave status indicator pill, aur document actions (duplicate, export, archive) shamil hain.
+ */
+
 import React from 'react';
 import { SaveStatusIndicator } from './SaveStatusIndicator.jsx';
 import { EditorActions } from './EditorActions.jsx';
 
 /**
- * Top header of the document editor with title editing, autosave indicator, and action buttons.
+ * Top header of the document editor.
+ *
+ * [ROMAN URDU]:
+ * Header component jo title input, save status indicator, aur action dropdowns render karta hai.
  *
  * @param {Object} props
  * @param {string} props.documentId - Current document ID
  * @param {string} props.title - Current title of the document
- * @param {Function} props.onTitleChange - Callback when title changes
+ * @param {Function} [props.onTitleChange] - Callback when title changes
  * @param {string} props.saveStatus - Current autosave status
- * @param {Date|null} props.lastSavedAt - Last saved timestamp
+ * @param {Date|null} [props.lastSavedAt] - Last saved timestamp
  * @param {boolean} [props.isReadOnly=false] - If document is in read-only mode
  * @param {Function} [props.onReadOnlyToggle] - Callback to toggle read-only mode
  * @param {Function} [props.onDocumentDuplicated] - Callback when cloned
  * @param {Function} [props.onDocumentArchived] - Callback when archived
+ * @returns {React.JSX.Element}
  */
 export function EditorHeader({
   documentId,
@@ -56,3 +71,5 @@ export function EditorHeader({
     </header>
   );
 }
+
+export default EditorHeader;

@@ -1,16 +1,41 @@
-import React, { useState } from 'react';
-import { apiExportDocument, apiDuplicateDocument, apiArchiveDocument } from '../services/documentApi.js';
+/**
+ * @file EditorActions.jsx
+ * @description Action menu dropdown component for document operations.
+ * Handles duplicate, exports (Markdown, JSON, Plain Text), archive to trash, and read-only toggle.
+ * @module frontend/src/modules/editor/components/EditorActions
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh component document ke action dropdown menu ko render karta hai jisme duplicate,
+ * markdown/JSON/text export, trash mein bhejna (soft-delete), aur read-only mode toggle shamil hain.
+ */
+
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  MoreHorizontal,
+  Copy,
+  Download,
+  Trash2,
+  Eye,
+  EyeOff,
+  FileCode,
+  FileText,
+} from 'lucide-react';
+import { apiDuplicateDocument, apiArchiveDocument, apiExportDocument } from '../services/documentApi.js';
 
 /**
- * Editor Actions component providing document workflow triggers:
- * Duplicate, Export (Markdown, JSON, Text), Read-Only Toggle, and Archive.
+ * Document editor action menu.
+ *
+ * [ROMAN URDU]:
+ * Dropdown actions menu component.
  *
  * @param {Object} props
- * @param {string} props.documentId
- * @param {boolean} [props.isReadOnly=false]
- * @param {Function} [props.onReadOnlyToggle]
- * @param {Function} [props.onDocumentDuplicated]
- * @param {Function} [props.onDocumentArchived]
+ * @param {string} props.documentId - Target document ID
+ * @param {boolean} [props.isReadOnly=false] - If document is in read-only mode
+ * @param {Function} [props.onReadOnlyToggle] - Callback to toggle read-only mode
+ * @param {Function} [props.onDocumentDuplicated] - Callback when cloned
+ * @param {Function} [props.onDocumentArchived] - Callback when archived
+ * @returns {React.JSX.Element}
  */
 export function EditorActions({
   documentId,
@@ -19,131 +44,176 @@ export function EditorActions({
   onDocumentDuplicated,
   onDocumentArchived,
 }) {
-  const [isExporting, setIsExporting] = useState(false);
-  const [isDuplicating, setIsDuplicating] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isExportSubmenuOpen, setIsExportSubmenuOpen] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
+  const menuRef = useRef(null);
 
-  const handleExport = async (format) => {
-    if (!documentId || isExporting) return;
-    try {
-      setIsExporting(true);
-      setShowExportMenu(false);
-      await apiExportDocument(documentId, format);
-    } catch (err) {
-      console.error('[Export Error]:', err);
-      alert('Failed to export document: ' + err.message);
-    } finally {
-      setIsExporting(false);
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setIsExportSubmenuOpen(false);
+      }
     }
-  };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
 
   const handleDuplicate = async () => {
-    if (!documentId || isDuplicating) return;
+    if (!documentId || isBusy) return;
     try {
-      setIsDuplicating(true);
-      const cloned = await apiDuplicateDocument(documentId);
-      onDocumentDuplicated?.(cloned);
+      setIsBusy(true);
+      const duplicated = await apiDuplicateDocument(documentId);
+      setIsOpen(false);
+      onDocumentDuplicated?.(duplicated);
     } catch (err) {
       console.error('[Duplicate Error]:', err);
-      alert('Failed to duplicate document: ' + err.message);
     } finally {
-      setIsDuplicating(false);
+      setIsBusy(false);
     }
   };
 
   const handleArchive = async () => {
-    if (!documentId || isArchiving) return;
-    if (!window.confirm('Are you sure you want to move this document to trash?')) return;
+    if (!documentId || isBusy) return;
+    const confirm = window.confirm('Move this document to trash? It will be retained for 30 days.');
+    if (!confirm) return;
 
     try {
-      setIsArchiving(true);
+      setIsBusy(true);
       await apiArchiveDocument(documentId);
+      setIsOpen(false);
       onDocumentArchived?.(documentId);
     } catch (err) {
       console.error('[Archive Error]:', err);
-      alert('Failed to archive document: ' + err.message);
     } finally {
-      setIsArchiving(false);
+      setIsBusy(false);
+    }
+  };
+
+  const handleExport = async (format) => {
+    if (!documentId || isBusy) return;
+    try {
+      setIsBusy(true);
+      const result = await apiExportDocument(documentId, format);
+      if (result?.content) {
+        const blob = new Blob([result.content], { type: result.mimeType || 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename || `document.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      setIsOpen(false);
+      setIsExportSubmenuOpen(false);
+    } catch (err) {
+      console.error('[Export Error]:', err);
+    } finally {
+      setIsBusy(false);
     }
   };
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Read-Only Toggle */}
+    <div className="relative" ref={menuRef}>
       <button
         type="button"
-        onClick={() => onReadOnlyToggle?.(!isReadOnly)}
-        className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
-          isReadOnly
-            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-        }`}
-        title={isReadOnly ? 'Switch to Edit mode' : 'Switch to Read-only mode'}
+        onClick={() => setIsOpen(!isOpen)}
+        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors"
+        title="Document Actions"
+        aria-label="Document Actions"
       >
-        {isReadOnly ? '👁 Viewing' : '✎ Editing'}
+        <MoreHorizontal className="w-5 h-5" />
       </button>
 
-      {/* Duplicate Button */}
-      <button
-        type="button"
-        disabled={!documentId || isDuplicating}
-        onClick={handleDuplicate}
-        className="px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors disabled:opacity-50"
-        title="Duplicate this document"
-      >
-        {isDuplicating ? 'Duplicating...' : 'Duplicate'}
-      </button>
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-56 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+          <button
+            type="button"
+            onClick={onReadOnlyToggle}
+            className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+          >
+            {isReadOnly ? <Eye className="w-4 h-4 text-slate-400" /> : <EyeOff className="w-4 h-4 text-slate-400" />}
+            <span>{isReadOnly ? 'Switch to Edit Mode' : 'Switch to Read-Only'}</span>
+          </button>
 
-      {/* Export Dropdown */}
-      <div className="relative">
-        <button
-          type="button"
-          disabled={!documentId || isExporting}
-          onClick={() => setShowExportMenu((prev) => !prev)}
-          className="px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors flex items-center gap-1 disabled:opacity-50"
-        >
-          <span>{isExporting ? 'Exporting...' : 'Export'}</span>
-          <span className="text-[10px]">▼</span>
-        </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={handleDuplicate}
+            className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors disabled:opacity-50"
+          >
+            <Copy className="w-4 h-4 text-slate-400" />
+            <span>Duplicate Document</span>
+          </button>
 
-        {showExportMenu && (
-          <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-lg py-1 z-20">
+          <div
+            className="relative"
+            onMouseEnter={() => setIsExportSubmenuOpen(true)}
+            onMouseLeave={() => setIsExportSubmenuOpen(false)}
+          >
             <button
               type="button"
-              onClick={() => handleExport('markdown')}
-              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
             >
-              Markdown (.md)
+              <div className="flex items-center gap-2.5">
+                <Download className="w-4 h-4 text-slate-400" />
+                <span>Export As...</span>
+              </div>
+              <span className="text-slate-400 text-[10px]">▶</span>
             </button>
-            <button
-              type="button"
-              onClick={() => handleExport('json')}
-              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              JSON (.json)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExport('text')}
-              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              Plain Text (.txt)
-            </button>
+
+            {isExportSubmenuOpen && (
+              <div className="absolute right-full top-0 mr-1 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50">
+                <button
+                  type="button"
+                  onClick={() => handleExport('markdown')}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Markdown (.md)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('json')}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  <FileCode className="w-3.5 h-3.5 text-amber-500" />
+                  <span>JSON AST (.json)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('text')}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  <FileText className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Plain Text (.txt)</span>
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Archive / Trash */}
-      <button
-        type="button"
-        disabled={!documentId || isArchiving}
-        onClick={handleArchive}
-        className="px-2.5 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors disabled:opacity-50"
-        title="Move document to trash"
-      >
-        {isArchiving ? 'Archiving...' : 'Archive'}
-      </button>
+          <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={handleArchive}
+            className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors disabled:opacity-50"
+          >
+            <Trash2 className="w-4 h-4 text-rose-500" />
+            <span>Move to Trash</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+export default EditorActions;
