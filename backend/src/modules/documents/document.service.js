@@ -231,7 +231,7 @@ export async function updateDocumentMetadata(documentId, updateData, userId) {
   const updated = await DocumentModel.findOneAndUpdate(
     { _id: documentId, isArchived: false },
     { $set: allowedUpdates },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   ).exec();
 
   if (updated) {
@@ -296,7 +296,7 @@ export async function autosaveDocumentContent(documentId, contentPayload, userId
       $set: { content, plainText, lastModifiedBy: userId },
       $inc: { version: 1 },
     },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   ).exec();
 
   if (updated) {
@@ -355,7 +355,7 @@ export async function toggleFavoriteDocument(documentId, userId) {
     : { $addToSet: { favoritedBy: userId } };
 
   const updated = await DocumentModel.findByIdAndUpdate(documentId, updateQuery, {
-    new: true,
+    returnDocument: 'after',
   }).exec();
 
   documentEvents.emit(DOCUMENT_EVENTS.FAVORITE_TOGGLED, {
@@ -392,7 +392,7 @@ export async function updateDocumentTags(documentId, tags, userId) {
   const updated = await DocumentModel.findOneAndUpdate(
     { _id: documentId, isArchived: false },
     { $set: { tags: cleanTags, lastModifiedBy: userId } },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   ).exec();
 
   if (updated) {
@@ -461,7 +461,7 @@ export async function addDocumentAttachment(documentId, attachmentPayload, userI
       $push: { attachments: attachment },
       $set: { lastModifiedBy: userId },
     },
-    { new: true }
+    { returnDocument: 'after' }
   ).exec();
 
   if (!updated) return null;
@@ -497,7 +497,7 @@ export async function removeDocumentAttachment(documentId, attachmentId, userId)
       $pull: { attachments: { attachmentId } },
       $set: { lastModifiedBy: userId },
     },
-    { new: true }
+    { returnDocument: 'after' }
   ).exec();
 
   if (updated) {

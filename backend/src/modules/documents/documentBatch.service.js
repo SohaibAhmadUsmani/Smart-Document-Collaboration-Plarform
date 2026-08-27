@@ -57,7 +57,7 @@ export async function executeBatchOperation(action, documentIds, payload = {}, u
           const res = await DocumentModel.findOneAndUpdate(
             { _id: id, isArchived: false },
             { $set: { folderId: payload.targetFolderId || null, lastModifiedBy: userId } },
-            { new: true }
+            { returnDocument: 'after' }
           );
           if (res) succeeded.push(id);
           else failed.push({ id, reason: 'Document not found or is archived' });
