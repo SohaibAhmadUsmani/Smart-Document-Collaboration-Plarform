@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchVersionHistory, restoreVersion } from './historyApi.js';
+import { fetchVersionHistory, restoreVersion, createVersionSnapshot } from './historyApi.js';
 
 /**
  * VersionHistoryDrawer Component
@@ -10,11 +10,14 @@ import { fetchVersionHistory, restoreVersion } from './historyApi.js';
  * - See who made changes (Author)
  * - See when changes were made (Timestamp)
  * - Restore an old version
+ * - Save manual version snapshots
  */
 export function VersionHistoryDrawer({
   isOpen,
   onClose,
   documentId,
+  currentTitle,
+  currentContent,
   onVersionRestored,
   onSelectVersionPreview
 }) {
@@ -22,6 +25,7 @@ export function VersionHistoryDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [restoringId, setRestoringId] = useState(null);
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
 
   // Load version history when drawer opens or documentId changes
   useEffect(() => {
@@ -60,6 +64,27 @@ export function VersionHistoryDrawer({
       alert(`Restore failed: ${err.message}`);
     } finally {
       setRestoringId(null);
+    }
+  }
+
+  async function handleSaveSnapshot() {
+    const summary = window.prompt('Enter a description for this new version snapshot:', 'Manual snapshot');
+    if (summary === null) return;
+
+    setIsSavingSnapshot(true);
+    try {
+      const formattedContent = typeof currentContent === 'object' ? JSON.stringify(currentContent) : (currentContent || '');
+      await createVersionSnapshot(documentId, {
+        title: currentTitle || 'Untitled Document',
+        content: formattedContent,
+        changeSummary: summary || 'Manual version snapshot',
+        createdBy: 'Aiman'
+      });
+      await loadHistory();
+    } catch (err) {
+      alert(`Snapshot failed: ${err.message}`);
+    } finally {
+      setIsSavingSnapshot(false);
     }
   }
 
@@ -112,21 +137,41 @@ export function VersionHistoryDrawer({
             Document ID: {documentId}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '20px',
-            cursor: 'pointer',
-            color: '#64748b',
-            padding: '4px 8px',
-            borderRadius: '4px'
-          }}
-        >
-          ✕
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={handleSaveSnapshot}
+            disabled={isSavingSnapshot}
+            style={{
+              padding: '4px 8px',
+              fontSize: '12px',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 500
+            }}
+            title="Create manual version snapshot"
+          >
+            {isSavingSnapshot ? 'Saving...' : '+ Snapshot'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '20px',
+              cursor: 'pointer',
+              color: '#64748b',
+              padding: '4px 8px',
+              borderRadius: '4px'
+            }}
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Drawer Body / Version Timeline */}

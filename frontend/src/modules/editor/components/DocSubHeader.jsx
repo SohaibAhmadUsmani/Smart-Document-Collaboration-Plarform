@@ -8,6 +8,7 @@ import {
   UploadCloud,
   Plus,
   CloudOff,
+  History,
 } from 'lucide-react';
 import { MOCK_COLLABORATORS } from '../services/mockData.js';
 import { SAVE_STATUS } from '../types/document.js';
@@ -21,6 +22,7 @@ export function DocSubHeader({
   onShareClick,
   onPublishClick,
   onOpenShortcuts,
+  onOpenHistory,
 }) {
 
   const [activeTooltip, setActiveTooltip] = useState(null);
@@ -160,6 +162,16 @@ export function DocSubHeader({
           <span className="font-mono text-[10px] font-semibold text-slate-400">Ctrl+/</span>
         </button>
 
+        {/* History Button */}
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          className="h-8.5 px-3.5 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-all active:scale-98"
+          title="View Version History"
+        >
+          <History className="w-3.5 h-3.5 text-blue-600" />
+          <span>History</span>
+        </button>
 
         {/* Share Button */}
         <button

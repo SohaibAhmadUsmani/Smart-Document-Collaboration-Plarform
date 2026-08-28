@@ -15,6 +15,12 @@ import { BubbleFloatingMenu } from './BubbleFloatingMenu.jsx';
 import { TableCellMenu } from './TableCellMenu.jsx';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal.jsx';
 import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
+import {
+  VersionHistoryDrawer,
+  VersionPreviewModal,
+  GlobalSearchBar,
+  restoreVersion,
+} from '../../history-search/index.js';
 import { apiGetDocument, apiAddAttachment } from '../services/documentApi.js';
 import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
 import { SAVE_STATUS } from '../types/document.js';
@@ -38,6 +44,11 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
+
+  // History & Search UI State (Owner: Aiman)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Comment mark hydration state
   const hydratedCommentIdsRef = useRef(new Set());
@@ -277,7 +288,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     >
 
       {/* 1. Top Global Navigation Header (Hidden in Zen Mode) */}
-      {!isZenMode && <TopGlobalHeader />}
+      {!isZenMode && <TopGlobalHeader onSearchClick={() => setIsSearchOpen(true)} />}
 
       {/* 2. Document Sub-Header & Breadcrumb Bar */}
       {!isZenMode && (
@@ -289,6 +300,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
           onTitleChange={(newTitle) => updateTitle(newTitle)}
           onShareClick={() => alert('Workspace sharing modal opened: manage access and link permissions.')}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          onOpenHistory={() => setIsHistoryOpen(true)}
         />
       )}
 
@@ -370,6 +382,62 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      {/* 6. Version History Drawer Overlay (Owner: Aiman) */}
+      <VersionHistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        documentId={state.documentId || PRIMARY_LIVE_SEED_ID}
+        currentTitle={state.title}
+        currentContent={state.content}
+        onVersionRestored={(restoredData) => {
+          if (restoredData) {
+            setDocument({
+              ...state,
+              title: restoredData.title || state.title,
+              content: restoredData.content || state.content,
+            });
+          }
+        }}
+        onSelectVersionPreview={(ver) => setPreviewVersion(ver)}
+      />
+
+      {/* 7. Version Preview Modal Overlay (Owner: Aiman) */}
+      {previewVersion && (
+        <VersionPreviewModal
+          version={previewVersion}
+          onClose={() => setPreviewVersion(null)}
+          onRestore={async (ver) => {
+            try {
+              const res = await restoreVersion(state.documentId || PRIMARY_LIVE_SEED_ID, ver.id);
+              if (res?.data) {
+                setDocument({
+                  ...state,
+                  title: res.data.title || state.title,
+                  content: res.data.content || state.content,
+                });
+              }
+            } catch (err) {
+              alert(`Restore failed: ${err.message}`);
+            }
+          }}
+        />
+      )}
+
+      {/* 8. Global Search Overlay (Owner: Aiman) */}
+      <GlobalSearchBar
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onSelectResult={(result) => {
+          if (result?.documentId) {
+            setDocument({
+              ...state,
+              documentId: result.documentId,
+              title: result.title || state.title,
+            });
+          }
+        }}
       />
     </div>
   );

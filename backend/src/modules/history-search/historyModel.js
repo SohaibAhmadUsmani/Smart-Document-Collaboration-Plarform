@@ -9,6 +9,69 @@
 // In-memory data store for versions pre-populated with initial sample version history
 export const inMemoryVersionStore = [
   {
+    id: 'ver_seed_201',
+    documentId: '66cc00000000000000000001',
+    versionNumber: 1,
+    title: 'Q3 Marketing Strategy & Execution Plan',
+    content: `Q3 Marketing Strategy & Execution Plan
+
+This document outlines our core marketing initiatives for the upcoming third quarter. Our primary focus is on expanding our enterprise footprint while maintaining the high retention rates we saw in Q2. We'll be leveraging our new collaborative features as the primary value proposition.
+
+1. Executive Summary
+Our target is a 25% increase in MQLs (Marketing Qualified Leads) through a combination of targeted LinkedIn campaigns, a revamped webinar series, and strategic partnerships with industry influencers in the DevOps space.
+
+“The goal isn’t just more users; it’s more high-intent teams that can benefit from DocSync Pro’s real-time collaboration engine.” — Marketing Director`,
+    createdBy: 'Muzammil Tanveer',
+    changeSummary: 'Initial document draft created',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString() // 2 days ago
+  },
+  {
+    id: 'ver_seed_202',
+    documentId: '66cc00000000000000000001',
+    versionNumber: 2,
+    title: 'Q3 Marketing Strategy & Execution Plan',
+    content: `Q3 Marketing Strategy & Execution Plan
+
+This document outlines our core marketing initiatives for the upcoming third quarter. Our primary focus is on expanding our enterprise footprint while maintaining the high retention rates we saw in Q2.
+
+1. Executive Summary
+Our target is a 25% increase in MQLs (Marketing Qualified Leads) through a combination of targeted LinkedIn campaigns, a revamped webinar series, and strategic partnerships with industry influencers in the DevOps space.
+
+2. Core Objectives
+[x] Launch "DocSync for Enterprise" campaign highlighting SOC2 compliance.
+[x] Host 3 regional networking events for CTOs and Engineering Managers.
+[x] Decrease customer acquisition cost (CAC) by 15% through organic SEO optimization.`,
+    createdBy: 'Marcus Thorne',
+    changeSummary: 'Added LinkedIn and webinar distribution plan',
+    createdAt: new Date(Date.now() - 3600000 * 5).toISOString() // 5 hours ago
+  },
+  {
+    id: 'ver_seed_203',
+    documentId: '66cc00000000000000000001',
+    versionNumber: 3,
+    title: 'Q3 Marketing Strategy & Execution Plan',
+    content: `Q3 Marketing Strategy & Execution Plan
+
+This document outlines our core marketing initiatives for the upcoming third quarter. Our primary focus is on expanding our enterprise footprint while maintaining the high retention rates we saw in Q2. We'll be leveraging our new collaborative features as the primary value proposition.
+
+1. Executive Summary
+Our target is a 25% increase in MQLs (Marketing Qualified Leads) through a combination of targeted LinkedIn campaigns, a revamped webinar series, and strategic partnerships with industry influencers in the DevOps space.
+
+“The goal isn’t just more users; it’s more high-intent teams that can benefit from DocSync Pro’s real-time collaboration engine.” — Marketing Director
+
+2. Core Objectives
+[x] Launch "DocSync for Enterprise" campaign highlighting SOC2 compliance.
+[x] Host 3 regional networking events for CTOs and Engineering Managers.
+[x] Decrease customer acquisition cost (CAC) by 15% through organic SEO optimization.
+
+3. Content Roadmap
+Our content strategy will pivot towards "Success Stories" and "Workflow Deep Dives". We want to show, not just tell, how teams are using DocSync Pro to ship products faster.
+We will be focusing heavily on Interactive Video Tutorials that allow users to follow along within their own workspace environments.`,
+    createdBy: 'Sarah Chen',
+    changeSummary: 'Updated Core Objectives and MQL targets',
+    createdAt: new Date(Date.now() - 3600000 * 1).toISOString() // 1 hour ago
+  },
+  {
     id: 'ver_seed_101',
     documentId: 'doc_123',
     versionNumber: 1,
