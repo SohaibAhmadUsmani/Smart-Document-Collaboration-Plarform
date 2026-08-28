@@ -91,7 +91,7 @@ export function WorkspaceOverviewPage() {
               </button>
             </span>))}
         </div>
-
+ 
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-ink-900">
             {currentFolder ? currentFolder.name : 'Workspace Overview'}
@@ -105,9 +105,18 @@ export function WorkspaceOverviewPage() {
             {canEdit && (<Button variant="primary" onClick={() => setFolderModal({ mode: 'create' })}>
                 <PlusIcon /> New folder
               </Button>)}
+            {canEdit && (
+              <Link
+                to={`/editor?workspaceId=${workspaceId}${currentFolderId ? `&folderId=${currentFolderId}` : ''}`}
+              >
+                <Button variant="dark">
+                  <PlusIcon /> New document
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
-
+ 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-card">
@@ -165,16 +174,16 @@ export function WorkspaceOverviewPage() {
               </table>
             </div>
           </div>
-
+ 
           <div className="space-y-6">
             <MembersPanel workspaceId={workspaceId} members={members} loading={membersLoading}/>
             <TeamsPanel workspaceId={workspaceId} teams={teams} loading={teamsLoading} canManage={canManage} onChanged={refreshTeams}/>
           </div>
         </div>
       </main>
-
+ 
       {folderModal && workspaceId && (<FolderModal open onClose={() => setFolderModal(null)} onSaved={refreshFolders} workspaceId={workspaceId} parentFolderId={currentFolderId} folder={folderModal.folder}/>)}
-
+ 
       <ConfirmDialog open={Boolean(deleteTarget)} title="Delete folder?" description={`"${deleteTarget?.name}" and everything inside it will be permanently deleted. This can't be undone.`} confirmLabel="Delete folder" busy={deleting} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)}/>
     </div>);
 }

@@ -1,7 +1,5 @@
 import { Avatar } from '../../../components/Avatar';
 // TODO: replace with the real signed-in user once the Auth module exposes
-// a /me endpoint or session context. Kept local to this module so it's a
-// one-line swap later, not a rewrite.
 const CURRENT_USER = { name: 'You', avatarUrl: null };
 export function TopBar() {
     return (<header className="sticky top-0 z-20 border-b border-border bg-surface">
@@ -19,8 +17,20 @@ export function TopBar() {
             </svg>
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500"/>
           </button>
-          <Avatar name={CURRENT_USER.name} imageUrl={CURRENT_USER.avatarUrl} size={32}/>
+          <button type="button" className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 hover:bg-canvas">
+            <Avatar name={CURRENT_USER.name} imageUrl={CURRENT_USER.avatarUrl} size={32}/>
+            <span className="text-sm font-medium text-ink-900">{CURRENT_USER.name}</span>
+            <ChevronDownIcon />
+          </button>
         </div>
       </div>
     </header>);
+}
+ 
+function ChevronDownIcon() {
+  return (
+    <svg className="h-4 w-4 text-ink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
 }
