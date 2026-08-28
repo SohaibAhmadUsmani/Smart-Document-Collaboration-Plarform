@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Comment } from '../models/Comment.js';
 import { DocumentModel } from '../../documents/document.model.js';
+import '../../auth/user.model.js';
 import { AppError } from '../../workspaces/utils/AppError.js';
 import { permissionService } from '../../workspaces/services/permissionService.js';
 import { notificationService } from '../../notifications/services/notificationService.js';
@@ -123,7 +124,10 @@ export async function createComment({
   const document = await findDocumentOrThrow(documentId);
   await assertCommentPermission(userId, document);
 
-  validateCommentFields({ body, anchorType, from, to });
+  // Skip anchor validation for replies (replies inherit parent's anchor)
+  if (!parentComment) {
+    validateCommentFields({ body, anchorType, from, to });
+  }
 
   if (parentComment) {
     if (!isValidObjectId(parentComment)) {
@@ -247,13 +251,13 @@ export async function replyToComment({
     documentId,
     userId,
     body,
-    anchorType,
-    from,
-    to,
-    exactQuote,
-    prefixContext,
-    suffixContext,
-    blockId,
+    anchorType: anchorType || 'text_selection',
+    from: typeof from === 'number' ? from : 0,
+    to: typeof to === 'number' ? to : 0,
+    exactQuote: exactQuote || '',
+    prefixContext: prefixContext || '',
+    suffixContext: suffixContext || '',
+    blockId: blockId || null,
     mentions,
     parentComment: commentId,
   });

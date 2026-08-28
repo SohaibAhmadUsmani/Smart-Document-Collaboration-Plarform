@@ -17,7 +17,7 @@ const TARGET_DB_URI = env.databaseUrl || 'mongodb://localhost:27017/smart_docume
 // Rich Default Seed Document (matching MOCK_INITIAL_DOCUMENT)
 const SEED_DOCUMENT = {
   _id: new mongoose.Types.ObjectId('66cc00000000000000000001'),
-  workspaceId: 'ws_main_workspace_01',
+  workspaceId: '66cc00000000000000000002',
   folderId: 'folder_specifications_01',
   title: 'Smart Document Collaboration Platform — System Architecture & Implementation Spec',
   plainText: 'Welcome to DocSync Pro — the high-performance real-time collaborative workspace. This document serves as the live architectural reference.',
@@ -329,6 +329,23 @@ export async function seedDatabase() {
     { upsert: true }
   );
   console.log('✅ Seeded user: muzammil@docplatform.local');
+
+  // 4b. Provision & Populate 'workspacemembers' Collection (required by permissionService)
+  const wsMemberCol = db.collection('workspacemembers');
+  await wsMemberCol.updateOne(
+    { workspace: SEED_WORKSPACE._id, user: SEED_USER._id },
+    {
+      $set: {
+        workspace: SEED_WORKSPACE._id,
+        user: SEED_USER._id,
+        role: 'OWNER',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+    { upsert: true }
+  );
+  console.log('✅ Seeded workspace member: OWNER role for muzammil in ws_main_workspace_01');
 
   // 5. Provision & Populate 'comments' Collection
   const commentCol = db.collection('comments');

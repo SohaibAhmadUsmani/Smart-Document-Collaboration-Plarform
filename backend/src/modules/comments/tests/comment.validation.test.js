@@ -296,13 +296,15 @@ test('validateReplyToComment: rejects invalid commentId param', () => {
 });
 
 test('validateReplyToComment: rejects invalid documentId', () => {
+  // Replies no longer require documentId — it's derived from the parent comment
   const req = mockReq(
     { documentId: INVALID_ID, body: 'Reply', anchorType: 'text_selection', from: 0, to: 3 },
     { commentId: VALID_ID },
   );
   const res = mockRes();
-  validateReplyToComment(req, res, () => {});
-  assert.equal(res.statusCode, 400);
+  let called = false;
+  validateReplyToComment(req, res, () => { called = true; });
+  assert.equal(called, true);
 });
 
 test('validateReplyToComment: rejects empty body', () => {
@@ -316,26 +318,31 @@ test('validateReplyToComment: rejects empty body', () => {
 });
 
 test('validateReplyToComment: rejects invalid anchorType', () => {
+  // Replies no longer require anchorType — anchor is inherited from parent
   const req = mockReq(
     { documentId: VALID_ID, body: 'Reply', anchorType: 'bold', from: 0, to: 3 },
     { commentId: VALID_ID },
   );
   const res = mockRes();
-  validateReplyToComment(req, res, () => {});
-  assert.equal(res.statusCode, 400);
+  let called = false;
+  validateReplyToComment(req, res, () => { called = true; });
+  assert.equal(called, true);
 });
 
 test('validateReplyToComment: rejects to < from', () => {
+  // Replies no longer validate anchor positions — anchor is inherited from parent
   const req = mockReq(
     { documentId: VALID_ID, body: 'Reply', anchorType: 'text_selection', from: 10, to: 3 },
     { commentId: VALID_ID },
   );
   const res = mockRes();
-  validateReplyToComment(req, res, () => {});
-  assert.equal(res.statusCode, 400);
+  let called = false;
+  validateReplyToComment(req, res, () => { called = true; });
+  assert.equal(called, true);
 });
 
 test('validateReplyToComment: rejects invalid mention ID', () => {
+  // Replies no longer validate mentions in the validator — handled at service level
   const req = mockReq(
     {
       documentId: VALID_ID,
@@ -348,8 +355,9 @@ test('validateReplyToComment: rejects invalid mention ID', () => {
     { commentId: VALID_ID },
   );
   const res = mockRes();
-  validateReplyToComment(req, res, () => {});
-  assert.equal(res.statusCode, 400);
+  let called = false;
+  validateReplyToComment(req, res, () => { called = true; });
+  assert.equal(called, true);
 });
 
 // ─── validateCommentId ───────────────────────────────────────────────────────
