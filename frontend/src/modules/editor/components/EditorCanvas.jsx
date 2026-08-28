@@ -15,6 +15,9 @@ import { BubbleFloatingMenu } from './BubbleFloatingMenu.jsx';
 import { TableCellMenu } from './TableCellMenu.jsx';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal.jsx';
 import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
+import { CollaborationProvider } from '../../collaboration/context/CollaborationContext.jsx';
+import { useDocumentCollaboration } from '../../collaboration/hooks/useDocumentCollaboration.js';
+import { ActiveUsers } from '../../collaboration/components/ActiveUsers.jsx';
 import { apiGetDocument, apiAddAttachment } from '../services/documentApi.js';
 import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
 import { SAVE_STATUS } from '../types/document.js';
@@ -25,6 +28,20 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   const { state, setDocument, updateTitle, addAttachment, setActiveCommentThread } = useDocumentEditor();
   const { editorRef, isReady, executeCommand, editorInstance } = useTipTapEditor({
     initialContent: state.content || MOCK_INITIAL_DOCUMENT.content,
+  });
+
+  // Real-time collaboration: mirror this document's content over Socket.IO.
+  // Persistence remains with the existing autosave hook below.
+  const collaborationDocId = state.documentId || PRIMARY_LIVE_SEED_ID;
+  const {
+    activeUsers,
+    presenceCount,
+    connected: collabConnected,
+  } = useDocumentCollaboration({
+    documentId: collaborationDocId,
+    editor: editorInstance,
+    content: state.content,
+    plainText: state.plainText,
   });
 
   // Comment anchor integration
@@ -312,6 +329,17 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
             </div>
           )}
 
+          {/* Real-time presence indicator (collaboration module) */}
+          {!isZenMode && (
+            <div className="fixed right-24 top-16 z-30 hidden sm:flex">
+              <ActiveUsers
+                users={activeUsers}
+                count={presenceCount}
+                connected={collabConnected}
+              />
+            </div>
+          )}
+
           {/* Centered Paper Document Sheet */}
           <PaperDocumentSheet
             editorRef={editorRef}
@@ -386,10 +414,14 @@ export function EditorCanvas({
 }) {
   return (
     <DocumentEditorProvider initialDocumentId={documentId} initialReadOnly={initialReadOnly}>
-      <EditorCanvasInner
-        onDocumentArchived={onDocumentArchived}
-        onDocumentDuplicated={onDocumentDuplicated}
-      />
+      {/* CollaborationProvider supplies the shared Socket.IO connection used by
+          useDocumentCollaboration for real-time editing/presence. */}
+      <CollaborationProvider>
+        <EditorCanvasInner
+          onDocumentArchived={onDocumentArchived}
+          onDocumentDuplicated={onDocumentDuplicated}
+        />
+      </CollaborationProvider>
     </DocumentEditorProvider>
   );
 }
