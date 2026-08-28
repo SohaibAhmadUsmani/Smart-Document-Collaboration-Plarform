@@ -67,6 +67,11 @@ export async function apiCreateComment(payload) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  if (!res.ok) {
+    const message =
+      res.data?.message || res.data?.error || 'Failed to create comment';
+    throw new Error(message);
+  }
   return res.data;
 }
 

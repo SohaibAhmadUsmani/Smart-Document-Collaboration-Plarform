@@ -29,7 +29,9 @@ export function useCommentAnchors(editorInstance) {
   const { state, setActiveCommentThread } = useDocumentEditor();
 
   /**
-   * Captures current text selection as structured comment anchor payload.
+   * Captures the current text selection as a structured comment anchor payload.
+   * Uses plain text offsets (matching editor.getText()) for consistent position
+   * resolution across page refreshes.
    *
    * [ROMAN URDU]:
    * Active text selection ke from/to offsets, exact text quote, aur prefix/suffix context extract karta hai.
@@ -40,13 +42,11 @@ export function useCommentAnchors(editorInstance) {
     const { from, to } = editorInstance.state.selection;
     if (from === to) return null; // No text selected
 
-    const exactQuote = editorInstance.state.doc.textBetween(from, to, ' ');
-
-    const prefixStart = Math.max(0, from - 30);
-    const prefixContext = editorInstance.state.doc.textBetween(prefixStart, from, ' ');
-
-    const suffixEnd = Math.min(editorInstance.state.doc.content.size, to + 30);
-    const suffixContext = editorInstance.state.doc.textBetween(to, suffixEnd, ' ');
+    // Use getText() for plain text offsets (consistent with resolver)
+    const fullText = editorInstance.getText();
+    const exactQuote = fullText.slice(from, to);
+    const prefixContext = fullText.slice(Math.max(0, from - 30), from);
+    const suffixContext = fullText.slice(to, Math.min(fullText.length, to + 30));
 
     return createCommentAnchor({
       documentId: state.documentId,

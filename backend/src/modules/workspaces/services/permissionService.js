@@ -32,7 +32,9 @@ function roleSatisfiesAction(role, action) {
 
 
 async function getUserRole(userId, workspaceId) {
-  if (!isValidObjectId(userId) || !isValidObjectId(workspaceId)) return null;
+  if (!isValidObjectId(userId) || !isValidObjectId(workspaceId)) {
+    return null;
+  }
   const membership = await WorkspaceMember.findOne({ workspace: workspaceId, user: userId })
     .select('role')
     .lean();
