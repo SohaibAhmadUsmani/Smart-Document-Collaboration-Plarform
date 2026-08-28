@@ -2,8 +2,8 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
 /**
- * Authentication Middleware Bridge (Maira's Module Contract).
- * Validates JWT Bearer tokens and provides safe development fallback user.
+ * Authentication Middleware (Maira's Module Contract).
+ * Validates JWT Bearer tokens. Requires a valid token — no dev fallback user.
  */
 export function requireAuth(req, res, next) {
   try {
@@ -13,34 +13,39 @@ export function requireAuth(req, res, next) {
         ? authHeader.split(' ')[1]
         : req.cookies?.token;
 
-    if (token && env.jwtSecret) {
-      try {
-        const decoded = jwt.verify(token, env.jwtSecret);
-        req.user = {
-          id: decoded.id || decoded._id || decoded.userId,
-          _id: decoded.id || decoded._id || decoded.userId,
-          email: decoded.email,
-          role: decoded.role || 'editor',
-          name: decoded.name || 'User',
-        };
-        return next();
-      } catch (tokenErr) {
-        console.warn('[Auth Notice]: Invalid session token:', tokenErr.message);
-      }
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Authentication token is required'
+      });
     }
 
-    // Development fallback user to prevent 401 crashes across team modules
-    if (!req.user) {
+    if (!env.jwtSecret) {
+      return res.status(500).json({
+        success: false,
+        error: 'Server Error',
+        message: 'JWT secret is not configured'
+      });
+    }
+
+    try {
+      const decoded = jwt.verify(token, env.jwtSecret);
       req.user = {
-        id: '654321098765432109876543', // Standard 24-char ObjectId format
-        _id: '654321098765432109876543',
-        name: 'Muzammil Tanveer',
-        email: 'muzammil@docsync.pro',
-        role: 'owner',
+        id: decoded.id || decoded._id || decoded.userId,
+        _id: decoded.id || decoded._id || decoded.userId,
+        email: decoded.email,
+        role: decoded.role || 'viewer',
+        name: decoded.name || 'User'
       };
+      return next();
+    } catch (tokenErr) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Invalid or expired session token'
+      });
     }
-
-    next();
   } catch (error) {
     next(error);
   }
