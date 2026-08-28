@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { app } from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase } from './config/database.js';
+import { initializeCollaboration, getIO } from './modules/collaboration/index.js';
 
 let server;
 
@@ -14,6 +15,8 @@ async function startServer(port = env.port, attempts = 0) {
   }
 
   const httpServer = http.createServer(app);
+
+  initializeCollaboration(httpServer);
 
   httpServer.on('error', (err) => {
     if (err.code === 'EADDRINUSE' && attempts < 3) {
@@ -34,6 +37,10 @@ async function startServer(port = env.port, attempts = 0) {
   const shutdown = async (signal) => {
     console.log(`[Shutdown]: Received ${signal}. Closing HTTP server and database connections...`);
     if (server) {
+      const io = getIO();
+      if (io) {
+        io.close();
+      }
       server.close(async () => {
         if (mongoose.connection.readyState === 1) {
           await mongoose.connection.close(false);
