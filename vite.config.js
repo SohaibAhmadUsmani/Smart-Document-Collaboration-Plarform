@@ -10,6 +10,17 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            // Suppress proxy errors during backend restart
+            if (err.code === 'ECONNRESET') {
+              if (res && !res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Backend restarting or unavailable' }));
+              }
+            }
+          });
+        },
       },
     },
   },
