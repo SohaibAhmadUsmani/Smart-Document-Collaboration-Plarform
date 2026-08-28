@@ -11,6 +11,22 @@ import { historyRouter } from '../modules/history-search/historyRoutes.js';
 export const apiRouter = Router();
 registerDocumentActivityListeners();
 
+console.log('DEV_FAKE_AUTH raw value seen by Node:', JSON.stringify(process.env.DEV_FAKE_AUTH));
+
+// TEMPORARY, DEV-ONLY: fakes req.user until Maira's auth module actually
+// sets it. Only runs when DEV_FAKE_AUTH=true is set in your local .env —
+// never on by default, never in production. Delete this block once
+// requireAuth is real; nothing downstream needs to change when that happens
+// since every route already reads req.user.id off whatever set it.
+if (process.env.DEV_FAKE_AUTH === 'true') {
+  console.log('Dev fake-auth middleware is ACTIVE — all requests will get a fake user.');
+  apiRouter.use((req, res, next) => {
+    req.user = { id: process.env.DEV_FAKE_USER_ID || '000000000000000000000001' };
+    next();
+  });
+} else {
+  console.log('Dev fake-auth middleware is OFF — requests need real auth (currently none exists, so everything 401s).');
+}
 apiRouter.use('/documents', documentRouter);
 apiRouter.use('/workspaces', workspaceRouter);
 apiRouter.use('/folders', folderRouter);
