@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { DocumentEditorProvider, useDocumentEditorContext } from '../context/DocumentEditorContext.jsx';
+import { DocumentNavigationProvider } from '../context/DocumentNavigationContext.jsx';
 import { useDocumentEditor } from '../hooks/useDocumentEditor.js';
 import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useAutosave } from '../hooks/useAutosave.js';
@@ -22,7 +23,7 @@ import { SAVE_STATUS } from '../types/document.js';
 const PRIMARY_LIVE_SEED_ID = '66cc00000000000000000001';
 
 function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
-  const { state, setDocument, updateTitle, addAttachment, setActiveCommentThread } = useDocumentEditor();
+  const { state, setDocument, setDocumentId, updateTitle, addAttachment, setActiveCommentThread } = useDocumentEditor();
   const { editorRef, isReady, executeCommand, editorInstance } = useTipTapEditor({
     initialContent: state.content || MOCK_INITIAL_DOCUMENT.content,
   });
@@ -50,6 +51,62 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     position: { top: 0, left: 0 },
   });
 
+  // Notification navigation state
+  const pendingNavigationCommentIdRef = useRef(null);
+
+  // Focus a comment by its ID in the editor
+  const focusCommentById = useCallback((commentId) => {
+    if (!editorInstance) return;
+
+    // Set the active comment thread in the sidebar
+    setActiveCommentThread(commentId);
+
+    // Try to find the comment mark in the document and scroll to it
+    try {
+      const { state: editorState } = editorInstance;
+      const { doc } = editorState;
+      let foundPos = null;
+
+      doc.descendants((node, pos) => {
+        if (foundPos) return false;
+        if (node.marks) {
+          for (const mark of node.marks) {
+            if (mark.type.name === 'commentMark' && mark.attrs.commentThreadId === commentId) {
+              foundPos = pos;
+              return false;
+            }
+          }
+        }
+      });
+
+      if (foundPos !== null) {
+        editorInstance.chain().focus().setTextSelection(foundPos).run();
+      }
+    } catch {
+      // Comment mark not found in editor — sidebar highlight is sufficient
+    }
+  }, [editorInstance, setActiveCommentThread]);
+
+  // Navigate to a document and optionally focus a comment
+  const navigateToDocument = useCallback((documentId, commentId) => {
+    if (!documentId) return;
+
+    if (commentId) {
+      pendingNavigationCommentIdRef.current = commentId;
+    }
+
+    // If already on this document, just focus the comment
+    if (state.documentId === documentId) {
+      if (commentId) {
+        focusCommentById(commentId);
+      }
+      return;
+    }
+
+    // Switch to the target document — the useEffect below will handle the rest
+    setDocumentId(documentId);
+  }, [state.documentId, setDocumentId, focusCommentById]);
+
   // 1. Initialize & Fetch live MongoDB Atlas document
   useEffect(() => {
     let isMounted = true;
@@ -76,6 +133,17 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       isMounted = false;
     };
   }, [state.documentId]);
+
+  // Focus pending comment after document loads (from notification navigation)
+  useEffect(() => {
+    if (isReady && editorInstance && pendingNavigationCommentIdRef.current) {
+      const commentId = pendingNavigationCommentIdRef.current;
+      pendingNavigationCommentIdRef.current = null;
+      // Small delay to ensure comment marks are hydrated
+      const timer = setTimeout(() => focusCommentById(commentId), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, editorInstance, state.documentId, focusCommentById]);
 
   // 2. Autosave hook with offline queue and OCC 409 conflict detection
   const { status: saveStatus, lastSavedAt, error: saveError } = useAutosave({
@@ -271,13 +339,14 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   };
 
   return (
+    <DocumentNavigationProvider value={{ navigateToDocument, currentDocumentId: state.documentId }}>
     <div
       data-editor-container="true"
       className="flex flex-col min-h-screen bg-slate-100/75 text-slate-900 font-sans antialiased"
     >
 
       {/* 1. Top Global Navigation Header (Hidden in Zen Mode) */}
-      {!isZenMode && <TopGlobalHeader />}
+      {!isZenMode && <TopGlobalHeader onNavigateToDocument={navigateToDocument} />}
 
       {/* 2. Document Sub-Header & Breadcrumb Bar */}
       {!isZenMode && (
@@ -372,6 +441,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
         onClose={() => setIsShortcutsOpen(false)}
       />
     </div>
+    </DocumentNavigationProvider>
   );
 }
 

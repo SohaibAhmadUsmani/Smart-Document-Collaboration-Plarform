@@ -8,6 +8,7 @@ export function useDocumentEditor() {
   const { state, dispatch } = useDocumentEditorContext();
 
   const setDocument = (doc) => dispatch({ type: DOCUMENT_ACTIONS.SET_DOCUMENT, payload: doc });
+  const setDocumentId = (id) => dispatch({ type: DOCUMENT_ACTIONS.SET_DOCUMENT_ID, payload: id });
   const updateTitle = (title) => dispatch({ type: DOCUMENT_ACTIONS.UPDATE_TITLE, payload: title });
   const updateContent = (content, plainText) =>
     dispatch({ type: DOCUMENT_ACTIONS.UPDATE_CONTENT, payload: { content, plainText } });
@@ -34,6 +35,7 @@ export function useDocumentEditor() {
     state,
     dispatch,
     setDocument,
+    setDocumentId,
     updateTitle,
     updateContent,
     setSaveStatus,

@@ -200,6 +200,8 @@ test('commentService: exports all required methods', async () => {
 test('notificationService: exports all required methods', async () => {
   const { notificationService } = await import('../notifications/services/notificationService.js');
   assert.equal(typeof notificationService.createMentionNotifications, 'function');
+  assert.equal(typeof notificationService.createCommentNotification, 'function');
+  assert.equal(typeof notificationService.createReplyNotification, 'function');
   assert.equal(typeof notificationService.getUserNotifications, 'function');
   assert.equal(typeof notificationService.getUnreadNotifications, 'function');
   assert.equal(typeof notificationService.markNotificationAsRead, 'function');

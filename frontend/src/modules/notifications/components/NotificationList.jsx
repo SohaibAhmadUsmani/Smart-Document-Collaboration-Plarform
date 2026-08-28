@@ -11,6 +11,8 @@ import { Bell } from 'lucide-react';
  * @param {Function} props.onMarkAsRead - Called with notificationId
  * @param {Function} props.onDelete - Called with notificationId
  * @param {string|null} props.deletingNotificationId - ID of notification being deleted
+ * @param {Function} [props.onNavigateToDocument] - Called with (documentId, commentId?) for navigation
+ * @param {Function} [props.onClose] - Called to close the notification panel
  */
 export function NotificationList({
   notifications,
@@ -18,6 +20,8 @@ export function NotificationList({
   onMarkAsRead,
   onDelete,
   deletingNotificationId,
+  onNavigateToDocument,
+  onClose,
 }) {
   if (isLoading && notifications.length === 0) {
     return (
@@ -46,6 +50,8 @@ export function NotificationList({
           onMarkAsRead={onMarkAsRead}
           onDelete={onDelete}
           isDeleting={deletingNotificationId === notification._id}
+          onNavigateToDocument={onNavigateToDocument}
+          onClose={onClose}
         />
       ))}
     </div>

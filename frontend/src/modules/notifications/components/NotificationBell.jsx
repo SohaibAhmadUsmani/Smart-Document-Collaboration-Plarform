@@ -6,8 +6,11 @@ import { NotificationPanel } from './NotificationPanel.jsx';
 /**
  * Self-contained notification bell with dropdown panel.
  * Owns the single useNotifications() instance shared with NotificationPanel.
+ *
+ * @param {Object} props
+ * @param {Function} [props.onNavigateToDocument] - Called with (documentId, commentId?) for navigation
  */
-export function NotificationBell() {
+export function NotificationBell({ onNavigateToDocument }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const {
@@ -50,6 +53,7 @@ export function NotificationBell() {
         onMarkAsRead={markAsRead}
         onMarkAllAsRead={markAllAsRead}
         onDelete={deleteNotification}
+        onNavigateToDocument={onNavigateToDocument}
       />
     </div>
   );

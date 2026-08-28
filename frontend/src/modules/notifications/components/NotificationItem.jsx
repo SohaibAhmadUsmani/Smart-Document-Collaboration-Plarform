@@ -27,6 +27,28 @@ function formatTimeAgo(dateString) {
 }
 
 /**
+ * Extract document ID from notification (handles both string and populated object).
+ */
+function getDocumentId(notification) {
+  const doc = notification.document;
+  if (!doc) return null;
+  if (typeof doc === 'string') return doc;
+  if (typeof doc === 'object' && (doc._id || doc.id)) return doc._id || doc.id;
+  return null;
+}
+
+/**
+ * Extract comment ID from notification (handles both string and populated object).
+ */
+function getCommentId(notification) {
+  const cmt = notification.comment;
+  if (!cmt) return null;
+  if (typeof cmt === 'string') return cmt;
+  if (typeof cmt === 'object' && (cmt._id || cmt.id)) return cmt._id || cmt.id;
+  return null;
+}
+
+/**
  * Single notification item.
  *
  * @param {Object} props
@@ -34,8 +56,10 @@ function formatTimeAgo(dateString) {
  * @param {Function} props.onMarkAsRead - Called with notificationId when clicked
  * @param {Function} props.onDelete - Called with notificationId when delete is clicked
  * @param {boolean} [props.isDeleting] - Whether delete is in progress
+ * @param {Function} [props.onNavigateToDocument] - Called with (documentId, commentId?) for navigation
+ * @param {Function} [props.onClose] - Called to close the notification panel
  */
-export function NotificationItem({ notification, onMarkAsRead, onDelete, isDeleting }) {
+export function NotificationItem({ notification, onMarkAsRead, onDelete, isDeleting, onNavigateToDocument, onClose }) {
   if (!notification) return null;
 
   const sender =
@@ -48,8 +72,21 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, isDelet
   const isUnread = !notification.read;
 
   const handleClick = () => {
+    // Mark as read if unread
     if (isUnread && onMarkAsRead) {
       onMarkAsRead(notification._id);
+    }
+
+    // Navigate to the related document/comment
+    const docId = getDocumentId(notification);
+    if (docId && onNavigateToDocument) {
+      const commentId = getCommentId(notification);
+      onNavigateToDocument(docId, commentId || undefined);
+    }
+
+    // Close the panel after navigation
+    if (onClose) {
+      onClose();
     }
   };
 

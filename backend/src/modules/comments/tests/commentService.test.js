@@ -72,6 +72,8 @@ const mockPermissionService = {
 
 const mockNotificationService = {
   createMentionNotifications: mock.fn(async () => {}),
+  createCommentNotification: mock.fn(async () => {}),
+  createReplyNotification: mock.fn(async () => {}),
 };
 
 function MockCommentConstructor(data) {
@@ -265,6 +267,114 @@ test('createComment: notification failure does not break comment creation', asyn
   const result = await commentService.createComment(baseArgs({ mentions: [OTHER_USER_ID] }));
   assert.ok(result);
   assert.equal(result.body, 'Looks good to me');
+});
+
+test('createComment: top-level comment by non-owner triggers comment notification', async () => {
+  mockDocumentModel.findOne.mock.mockImplementation(() => buildQueryChain({
+    workspaceId: VALID_WORKSPACE_ID,
+    createdBy: OTHER_USER_ID,
+  }));
+  mockPermissionService.assertPermission.mock.mockImplementation(async () => 'COMMENTER');
+  mockNotificationService.createCommentNotification.mock.mockImplementation(async () => {});
+
+  await commentService.createComment(baseArgs());
+
+  const calls = mockNotificationService.createCommentNotification.mock.calls;
+  assert.ok(calls.length > 0, 'createCommentNotification should have been called');
+  const args = calls[calls.length - 1].arguments[0];
+  assert.equal(args.senderId, VALID_USER_ID);
+  assert.equal(args.recipientId, OTHER_USER_ID);
+  assert.equal(args.documentId, VALID_DOC_ID);
+  assert.equal(args.workspaceId, VALID_WORKSPACE_ID);
+});
+
+test('createComment: top-level comment by document owner does not trigger comment notification', async () => {
+  mockDocumentModel.findOne.mock.mockImplementation(() => buildQueryChain({
+    workspaceId: VALID_WORKSPACE_ID,
+    createdBy: VALID_USER_ID,
+  }));
+  mockPermissionService.assertPermission.mock.mockImplementation(async () => 'COMMENTER');
+
+  const callsBefore = mockNotificationService.createCommentNotification.mock.calls.length;
+
+  await commentService.createComment(baseArgs());
+
+  assert.equal(mockNotificationService.createCommentNotification.mock.calls.length, callsBefore);
+});
+
+test('createComment: reply triggers reply notification for parent author', async () => {
+  mockDocumentModel.findOne.mock.mockImplementation(() => buildQueryChain(mockDocument));
+  mockPermissionService.assertPermission.mock.mockImplementation(async () => 'COMMENTER');
+  mockCommentModel.findOne.mock.mockImplementation(() => buildQueryChain({
+    _id: VALID_COMMENT_ID,
+    author: OTHER_USER_ID,
+  }));
+  mockNotificationService.createReplyNotification.mock.mockImplementation(async () => {});
+
+  await commentService.createComment(baseArgs({
+    parentComment: VALID_COMMENT_ID,
+    userId: VALID_USER_ID,
+  }));
+
+  const calls = mockNotificationService.createReplyNotification.mock.calls;
+  assert.ok(calls.length > 0, 'createReplyNotification should have been called');
+  const args = calls[calls.length - 1].arguments[0];
+  assert.equal(args.senderId, VALID_USER_ID);
+  assert.equal(args.recipientId, OTHER_USER_ID);
+  assert.equal(args.documentId, VALID_DOC_ID);
+  assert.equal(args.workspaceId, VALID_WORKSPACE_ID);
+});
+
+test('createComment: reply to own comment does not trigger reply notification', async () => {
+  mockDocumentModel.findOne.mock.mockImplementation(() => buildQueryChain(mockDocument));
+  mockPermissionService.assertPermission.mock.mockImplementation(async () => 'COMMENTER');
+  mockCommentModel.findOne.mock.mockImplementation(() => buildQueryChain({
+    _id: VALID_COMMENT_ID,
+    author: VALID_USER_ID,
+  }));
+
+  const callsBefore = mockNotificationService.createReplyNotification.mock.calls.length;
+
+  await commentService.createComment(baseArgs({
+    parentComment: VALID_COMMENT_ID,
+    userId: VALID_USER_ID,
+  }));
+
+  assert.equal(mockNotificationService.createReplyNotification.mock.calls.length, callsBefore);
+});
+
+test('createComment: mention and comment notifications both fire for top-level comment with mentions', async () => {
+  mockDocumentModel.findOne.mock.mockImplementation(() => buildQueryChain({
+    workspaceId: VALID_WORKSPACE_ID,
+    createdBy: OTHER_USER_ID,
+  }));
+  mockPermissionService.assertPermission.mock.mockImplementation(async () => 'COMMENTER');
+  mockNotificationService.createMentionNotifications.mock.mockImplementation(async () => {});
+  mockNotificationService.createCommentNotification.mock.mockImplementation(async () => {});
+
+  await commentService.createComment(baseArgs({ mentions: [OTHER_USER_ID] }));
+
+  assert.ok(mockNotificationService.createMentionNotifications.mock.calls.length > 0, 'mention notification should fire');
+  assert.ok(mockNotificationService.createCommentNotification.mock.calls.length > 0, 'comment notification should fire');
+});
+
+test('createComment: notification failure does not prevent reply notification', async () => {
+  mockDocumentModel.findOne.mock.mockImplementation(() => buildQueryChain(mockDocument));
+  mockPermissionService.assertPermission.mock.mockImplementation(async () => 'COMMENTER');
+  mockCommentModel.findOne.mock.mockImplementation(() => buildQueryChain({
+    _id: VALID_COMMENT_ID,
+    author: OTHER_USER_ID,
+  }));
+  mockNotificationService.createMentionNotifications.mock.mockImplementation(async () => { throw new Error('fail'); });
+  mockNotificationService.createReplyNotification.mock.mockImplementation(async () => {});
+
+  await commentService.createComment(baseArgs({
+    parentComment: VALID_COMMENT_ID,
+    userId: VALID_USER_ID,
+    mentions: [OTHER_USER_ID],
+  }));
+
+  assert.ok(mockNotificationService.createReplyNotification.mock.calls.length > 0, 'reply notification should still fire after mention failure');
 });
 
 // ─── getDocumentComments ─────────────────────────────────────────────────────

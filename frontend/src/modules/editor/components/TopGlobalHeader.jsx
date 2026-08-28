@@ -3,7 +3,7 @@ import { Search, ChevronDown, Command, User, Settings, LogOut } from 'lucide-rea
 import { NotificationBell } from '../../notifications/components/NotificationBell.jsx';
 import { MOCK_CURRENT_USER } from '../services/mockData.js';
 
-export function TopGlobalHeader({ onSearchClick }) {
+export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [showProfile, setShowProfile] = useState(false);
@@ -51,7 +51,7 @@ export function TopGlobalHeader({ onSearchClick }) {
       {/* Right: Notifications & Profile */}
       <div className="flex items-center gap-3">
         {/* Notification Bell (real data from useNotifications) */}
-        <NotificationBell />
+        <NotificationBell onNavigateToDocument={onNavigateToDocument} />
 
         {/* User Profile Dropdown */}
         <div className="relative">

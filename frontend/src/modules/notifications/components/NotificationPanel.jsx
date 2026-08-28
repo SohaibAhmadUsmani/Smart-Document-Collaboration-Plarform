@@ -18,6 +18,7 @@ import { NotificationList } from './NotificationList.jsx';
  * @param {Function} props.onMarkAsRead - Mark single notification as read
  * @param {Function} props.onMarkAllAsRead - Mark all notifications as read
  * @param {Function} props.onDelete - Delete a notification
+ * @param {Function} [props.onNavigateToDocument] - Called with (documentId, commentId?) for navigation
  */
 export function NotificationPanel({
   isOpen,
@@ -31,6 +32,7 @@ export function NotificationPanel({
   onMarkAsRead,
   onMarkAllAsRead,
   onDelete,
+  onNavigateToDocument,
 }) {
   const panelRef = useRef(null);
 
@@ -100,6 +102,8 @@ export function NotificationPanel({
           onMarkAsRead={onMarkAsRead}
           onDelete={onDelete}
           deletingNotificationId={deletingNotificationId}
+          onNavigateToDocument={onNavigateToDocument}
+          onClose={onClose}
         />
       </div>
     </div>
