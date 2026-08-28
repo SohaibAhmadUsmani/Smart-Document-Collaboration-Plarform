@@ -3,6 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { EditorCanvas } from '../modules/editor/index.js';
 import SignUpPage from '../modules/auth/pages/SignUpPage.jsx';
 import LoginPage from '../modules/auth/pages/LoginPage.jsx';
+import ForgotPasswordPage from '../modules/auth/pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from '../modules/auth/pages/ResetPasswordPage.jsx';
+import VerifyEmailPage from '../modules/auth/pages/VerifyEmailPage.jsx';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -34,6 +37,9 @@ export function App() {
           <Routes>
             <Route path="/signup" element={<SignUpPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
             <Route path="/dashboard" element={<EditorCanvas />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
