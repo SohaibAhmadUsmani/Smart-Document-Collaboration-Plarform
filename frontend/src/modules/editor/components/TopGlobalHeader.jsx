@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, ChevronDown, Command, CheckCheck, User, Settings, LogOut } from 'lucide-react';
+import { Search, ChevronDown, Command, User, Settings, LogOut } from 'lucide-react';
+import { NotificationBell } from '../../notifications/components/NotificationBell.jsx';
 import { MOCK_CURRENT_USER } from '../services/mockData.js';
 
 export function TopGlobalHeader({ onSearchClick }) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const searchInputRef = useRef(null);
 
@@ -50,50 +50,14 @@ export function TopGlobalHeader({ onSearchClick }) {
 
       {/* Right: Notifications & Profile */}
       <div className="flex items-center gap-3">
-        {/* Notification Bell with Dropdown */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setShowNotifications((prev) => !prev);
-              setShowProfile(false);
-            }}
-            className="relative p-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 top-11 w-80 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-100">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <span className="text-xs font-bold text-slate-900">Notifications</span>
-                <span className="text-[10px] text-blue-600 font-medium hover:underline cursor-pointer flex items-center gap-1">
-                  <CheckCheck className="w-3 h-3" /> Mark all read
-                </span>
-              </div>
-              <div className="py-2 space-y-2 text-xs">
-                <div className="p-2 rounded-lg bg-blue-50/50 hover:bg-blue-50 cursor-pointer">
-                  <p className="font-semibold text-slate-900">Sarah Chen commented</p>
-                  <p className="text-[11px] text-slate-600">"Should we increase the target to 30%?"</p>
-                  <span className="text-[10px] text-slate-400 font-mono">10m ago</span>
-                </div>
-                <div className="p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
-                  <p className="font-semibold text-slate-900">Marcus Thorne joined workspace</p>
-                  <span className="text-[10px] text-slate-400 font-mono">1h ago</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Notification Bell (real data from useNotifications) */}
+        <NotificationBell />
 
         {/* User Profile Dropdown */}
         <div className="relative">
           <div
             onClick={() => {
               setShowProfile((prev) => !prev);
-              setShowNotifications(false);
             }}
             className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-slate-100 cursor-pointer transition-colors"
           >
