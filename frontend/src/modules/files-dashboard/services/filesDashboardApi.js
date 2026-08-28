@@ -67,6 +67,14 @@ export async function moveFile(fileId, folderId) {
   });
 }
 
+export async function duplicateFile(fileId, folderId) {
+  return safeFetch(`${FILES_BASE}/${fileId}/duplicate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folderId: folderId || null }),
+  });
+}
+
 export async function deleteFile(fileId) {
   return safeFetch(`${FILES_BASE}/${fileId}`, {
     method: 'DELETE',
