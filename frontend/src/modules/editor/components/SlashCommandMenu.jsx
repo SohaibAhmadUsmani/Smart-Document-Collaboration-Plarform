@@ -1,3 +1,16 @@
+/**
+ * @file SlashCommandMenu.jsx
+ * @description Quick insertion slash command palette popover menu component for DocSync Pro.
+ * Triggered by typing `/` to quickly insert headings, lists, tables, callouts, code blocks, or attachments.
+ * @module frontend/src/modules/editor/components/SlashCommandMenu
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Jab user document canvas mein `/` type karta hai toh yeh floating command menu open hota hai.
+ * Arrow up/down se options navigate hoti hain aur Enter dabane par target node (heading,
+ * table, callout, checklist, code block) insert ho jata hai.
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Heading1,
@@ -6,20 +19,19 @@ import {
   List,
   ListOrdered,
   CheckSquare,
-  Table,
-  Code,
   Quote,
+  Code,
+  Table,
   Paperclip,
-  Minus,
+  Image,
 } from 'lucide-react';
 
-export const SLASH_COMMAND_ITEMS = [
+const SLASH_COMMANDS = [
   {
     id: 'h1',
     title: 'Heading 1',
-    description: 'Large section heading',
+    description: 'Big section heading',
     icon: Heading1,
-    category: 'Basic Blocks',
     command: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run(),
   },
   {
@@ -27,7 +39,6 @@ export const SLASH_COMMAND_ITEMS = [
     title: 'Heading 2',
     description: 'Medium section heading',
     icon: Heading2,
-    category: 'Basic Blocks',
     command: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run(),
   },
   {
@@ -35,146 +46,178 @@ export const SLASH_COMMAND_ITEMS = [
     title: 'Heading 3',
     description: 'Small subsection heading',
     icon: Heading3,
-    category: 'Basic Blocks',
     command: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
   },
   {
-    id: 'bulletList',
+    id: 'bullet_list',
     title: 'Bullet List',
-    description: 'Unordered bulleted list',
+    description: 'Create a simple bulleted list',
     icon: List,
-    category: 'Lists',
     command: (editor) => editor.chain().focus().toggleBulletList().run(),
   },
   {
-    id: 'orderedList',
+    id: 'ordered_list',
     title: 'Numbered List',
-    description: 'Ordered numbered list',
+    description: 'Create a numbered list sequence',
     icon: ListOrdered,
-    category: 'Lists',
     command: (editor) => editor.chain().focus().toggleOrderedList().run(),
   },
   {
-    id: 'taskList',
+    id: 'task_list',
     title: 'Task Checklist',
-    description: 'Interactive tasks with checkboxes',
+    description: 'Track tasks with checkboxes',
     icon: CheckSquare,
-    category: 'Lists',
     command: (editor) => editor.chain().focus().toggleTaskList().run(),
+  },
+  {
+    id: 'callout',
+    title: 'Callout / Quote',
+    description: 'Highlight important notice or quote',
+    icon: Quote,
+    command: (editor) => editor.chain().focus().toggleBlockquote().run(),
+  },
+  {
+    id: 'code_block',
+    title: 'Code Block',
+    description: 'Syntax highlighted code snippet',
+    icon: Code,
+    command: (editor) => editor.chain().focus().toggleCodeBlock().run(),
   },
   {
     id: 'table',
     title: 'Table',
-    description: 'Insert a 3x3 table with headers',
+    description: 'Insert a 3x3 editable table',
     icon: Table,
-    category: 'Advanced',
-    command: (editor) => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+    command: (editor) =>
+      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   },
   {
-    id: 'codeBlock',
-    title: 'Code Block',
-    description: 'Syntax-highlighted code block',
-    icon: Code,
-    category: 'Advanced',
-    command: (editor) => editor.chain().focus().toggleCodeBlock({ language: 'javascript' }).run(),
-  },
-  {
-    id: 'callout',
-    title: 'Callout Box',
-    description: 'Highlighted notice / alert box',
-    icon: Quote,
-    category: 'Advanced',
-    command: (editor) => editor.chain().focus().toggleBlockquote().run(),
-  },
-  {
-    id: 'divider',
-    title: 'Divider',
-    description: 'Horizontal line separator',
-    icon: Minus,
-    category: 'Basic Blocks',
-    command: (editor) => editor.chain().focus().setHorizontalRule().run(),
+    id: 'image',
+    title: 'Image',
+    description: 'Embed image from URL',
+    icon: Image,
+    command: (editor) => {
+      const url = window.prompt('Enter image URL:');
+      if (url) editor.chain().focus().setImage({ src: url }).run();
+    },
   },
 ];
 
-export function SlashCommandMenu({ editor, isOpen, onClose, query = '', position = { top: 0, left: 0 } }) {
+/**
+ * Slash Command Popover Menu.
+ *
+ * [ROMAN URDU]:
+ * Floating slash command menu component.
+ *
+ * @param {Object} props
+ * @param {Object} props.editor - TipTap editor instance
+ * @param {boolean} props.isOpen - Menu visibility
+ * @param {string} props.query - Filter query text
+ * @param {Object} props.position - Coordinates { top, left }
+ * @param {Function} props.onClose - Close callback
+ * @returns {React.JSX.Element|null}
+ */
+export function SlashCommandMenu({
+  editor,
+  isOpen,
+  query = '',
+  position = { top: 0, left: 0 },
+  onClose,
+}) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const menuRef = useRef(null);
 
-  const filteredItems = SLASH_COMMAND_ITEMS.filter((item) =>
-    item.title.toLowerCase().includes(query.toLowerCase()) ||
-    item.description.toLowerCase().includes(query.toLowerCase())
+  const filteredCommands = SLASH_COMMANDS.filter((cmd) =>
+    cmd.title.toLowerCase().includes(query.toLowerCase()) ||
+    cmd.description.toLowerCase().includes(query.toLowerCase())
   );
 
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
 
+  // Keyboard navigation listener (ArrowUp, ArrowDown, Enter)
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredItems.length));
+        setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredCommands.length));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((prev) => (prev - 1 + filteredItems.length) % Math.max(1, filteredItems.length));
+        setSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % Math.max(1, filteredCommands.length));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (filteredItems[selectedIndex]) {
-          filteredItems[selectedIndex].command(editor);
-          onClose();
+        if (filteredCommands[selectedIndex]) {
+          executeSelection(filteredCommands[selectedIndex]);
         }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedIndex, filteredItems, editor, onClose]);
+  }, [isOpen, selectedIndex, filteredCommands]);
 
-  if (!isOpen || filteredItems.length === 0) return null;
+  const executeSelection = (cmd) => {
+    if (!editor || !cmd) return;
+    cmd.command(editor);
+    onClose();
+  };
+
+  if (!isOpen || filteredCommands.length === 0) return null;
 
   return (
     <div
       ref={menuRef}
-      style={{ top: `${position.top + 28}px`, left: `${position.left}px` }}
-      className="fixed z-50 w-72 max-h-80 overflow-y-auto bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200 p-1.5 animate-in fade-in zoom-in-95 duration-150"
+      role="menu"
+      aria-label="Quick insert commands"
+      style={{
+        position: 'fixed',
+        top: `${Math.min(window.innerHeight - 320, position.top + 24)}px`,
+        left: `${Math.min(window.innerWidth - 300, Math.max(20, position.left))}px`,
+      }}
+      className="z-50 w-72 max-h-72 overflow-y-auto bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 py-1 text-xs text-slate-700 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-100"
     >
-      <div className="px-2 py-1 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-        Basic & Advanced Blocks
+      <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+        Basic Blocks
       </div>
-      {filteredItems.map((item, idx) => {
-        const Icon = item.icon;
-        const isSelected = idx === selectedIndex;
+
+      {filteredCommands.map((cmd, index) => {
+        const Icon = cmd.icon;
+        const isSelected = index === selectedIndex;
+
         return (
           <button
-            key={item.id}
+            key={cmd.id}
             type="button"
-            onClick={() => {
-              item.command(editor);
-              onClose();
-            }}
-            onMouseEnter={() => setSelectedIndex(idx)}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+            role="menuitem"
+            onClick={() => executeSelection(cmd)}
+            onMouseEnter={() => setSelectedIndex(index)}
+            className={`w-full text-left px-3 py-2 flex items-center gap-2.5 transition-colors ${
               isSelected
-                ? 'bg-blue-50 text-blue-900 font-medium'
-                : 'text-slate-700 hover:bg-slate-100'
+                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
             }`}
           >
-            <div className={`p-1.5 rounded-md ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            <div
+              className={`p-1.5 rounded-lg border ${
+                isSelected
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+              }`}
+            >
               <Icon className="w-4 h-4" />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-slate-800 truncate">{item.title}</div>
-              <div className="text-[10px] text-slate-500 truncate">{item.description}</div>
+            <div>
+              <p className="font-bold text-slate-900 dark:text-slate-100">{cmd.title}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">{cmd.description}</p>
             </div>
           </button>
         );
       })}
     </div>
-
   );
 }
+
+export default SlashCommandMenu;

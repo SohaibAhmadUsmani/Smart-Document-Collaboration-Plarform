@@ -5,10 +5,11 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Automatically load .env from project root, backend root, or current directory
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-dotenv.config();
+// Load .env from monorepo root (3 levels up from config/), then backend root (2 levels up).
+// { quiet: true } suppresses dotenv v17's verbose ◇ injected env branding messages.
+// [ROMAN URDU]: dotenv v17 har load pe console log karta hai — quiet flag se clean startup milta hai.
+dotenv.config({ path: path.resolve(__dirname, '../../../.env'), quiet: true });
+dotenv.config({ path: path.resolve(__dirname, '../../.env'), quiet: true });
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',

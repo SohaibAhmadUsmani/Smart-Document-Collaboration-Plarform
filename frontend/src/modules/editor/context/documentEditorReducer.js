@@ -1,5 +1,26 @@
+/**
+ * @file documentEditorReducer.js
+ * @description Centralized state reducer and initial state model for the Document Editor.
+ * Handles document hydration, title & AST mutations, autosave statuses, active marks,
+ * tags, favorites, attachments, and permissions.
+ * @module frontend/src/modules/editor/context/documentEditorReducer
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh reducer Document Editor ki tamam UI aur sync state mutations ko handle karta hai.
+ * Document load hone (`SET_DOCUMENT`), title update, content typing, autosave status changes,
+ * 409 conflict detection (`SET_CONFLICT`), resolution (`RESOLVE_CONFLICT`), aur beacon flush track karta hai.
+ */
+
 import { SAVE_STATUS, DEFAULT_DOCUMENT_AST, DOCUMENT_ACTIONS } from '../types/document.js';
 
+/**
+ * Initial State tree for Document Editor.
+ *
+ * [ROMAN URDU]:
+ * Document Editor ki default/initial state jisme document ID, title, rich content AST,
+ * autosave status, conflict resolution payload, aur permissions mojood hain.
+ */
 export const initialEditorState = {
   documentId: null,
   workspaceId: null,
@@ -21,6 +42,8 @@ export const initialEditorState = {
   lastSavedAt: null,
   saveError: null,
   isDirty: false,
+  conflictData: null, // Holds { serverDocument, localContent, localPlainText, error } on HTTP 409
+  isBeaconPending: false, // Tracks beforeunload background flush
 
   // Active Formatting & Selection State
   activeMarks: {},
@@ -40,6 +63,24 @@ export const initialEditorState = {
   },
 };
 
+/**
+ * Reducer function for managing document editor state transitions.
+ *
+ * [ROMAN URDU]:
+ * Reducer function jo har action type ke hisab se state update karta hai:
+ * - `SET_DOCUMENT`: Server se naya document hydrate karta hai.
+ * - `UPDATE_TITLE`: Title change karta hai aur isDirty flag set karta hai.
+ * - `UPDATE_CONTENT`: Rich-text AST aur plainText ko update karta hai.
+ * - `SET_SAVE_STATUS`: Autosave status (saving, saved, error, conflict) aur version sync karta hai.
+ * - `SET_CONFLICT`: Version conflict (409) aane par modal data save karta hai (#14).
+ * - `RESOLVE_CONFLICT`: User resolution (keep_server, keep_local, merge) ko apply karta hai (#14).
+ * - `SET_SAVING_BEACON`: Unload beacon flush ka flag update karta hai (#12).
+ * - `SET_ACTIVE_MARKS`: Current cursor selection ke formatting marks track karta hai.
+ *
+ * @param {Object} state - Current editor state
+ * @param {Object} action - Dispatched action with type and payload
+ * @returns {Object} Next editor state
+ */
 export function documentEditorReducer(state, action) {
   switch (action.type) {
     case DOCUMENT_ACTIONS.SET_DOCUMENT: {
@@ -61,6 +102,8 @@ export function documentEditorReducer(state, action) {
         version: doc.version || 1,
         isDirty: false,
         saveStatus: SAVE_STATUS.SAVED,
+        conflictData: null,
+        saveError: null,
         lastSavedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
       };
     }
@@ -158,6 +201,85 @@ export function documentEditorReducer(state, action) {
           ...state.permissions,
           ...action.payload,
         },
+      };
+
+    // [Issue #14]: Handle 409 Optimistic Concurrency Conflict
+    // [ROMAN URDU]: Jab 409 conflict aye to server doc aur local edits ko save kar ke user ko modal dikhane ke liye state set karta hai.
+    case DOCUMENT_ACTIONS.SET_CONFLICT:
+      return {
+        ...state,
+        saveStatus: SAVE_STATUS.CONFLICT,
+        conflictData: action.payload || null,
+        saveError:
+          action.payload?.error ||
+          action.payload?.message ||
+          'Version conflict detected: Another collaborator saved newer changes.',
+      };
+
+    // [Issue #14]: Resolve 409 Conflict with user choice ('keep_server' | 'keep_local' | 'merge')
+    // [ROMAN URDU]: User ke faislay ke mutabiq server version ya local version ya merged content ko state mein apply karta hai.
+    case DOCUMENT_ACTIONS.RESOLVE_CONFLICT: {
+      const { resolution, serverDocument, mergedContent, mergedPlainText, serverVersion, baseVersion } =
+        action.payload || {};
+
+      if (resolution === 'keep_server' && serverDocument) {
+        return {
+          ...state,
+          content: serverDocument.content || state.content,
+          plainText: serverDocument.plainText || state.plainText,
+          version: serverDocument.version || state.version + 1,
+          title: serverDocument.title || state.title,
+          tags: serverDocument.tags || state.tags,
+          saveStatus: SAVE_STATUS.SAVED,
+          conflictData: null,
+          saveError: null,
+          isDirty: false,
+          lastSavedAt: new Date(),
+        };
+      }
+
+      if (resolution === 'keep_local') {
+        const nextVersion =
+          baseVersion || (serverDocument ? serverDocument.version : serverVersion) || state.version;
+        return {
+          ...state,
+          version: nextVersion,
+          saveStatus: SAVE_STATUS.IDLE,
+          conflictData: null,
+          saveError: null,
+          isDirty: true,
+        };
+      }
+
+      if (resolution === 'merge') {
+        const nextVersion =
+          baseVersion || (serverDocument ? serverDocument.version : serverVersion) || state.version;
+        return {
+          ...state,
+          content: mergedContent || state.content,
+          plainText: mergedPlainText !== undefined ? mergedPlainText : state.plainText,
+          version: nextVersion,
+          saveStatus: SAVE_STATUS.IDLE,
+          conflictData: null,
+          saveError: null,
+          isDirty: true,
+        };
+      }
+
+      return {
+        ...state,
+        conflictData: null,
+        saveError: null,
+        saveStatus: SAVE_STATUS.IDLE,
+      };
+    }
+
+    // [Issue #12]: Track beforeunload navigator.sendBeacon save attempt
+    // [ROMAN URDU]: Tab band honay par background save trigger honay ka status track karta hai.
+    case DOCUMENT_ACTIONS.SET_SAVING_BEACON:
+      return {
+        ...state,
+        isBeaconPending: Boolean(action.payload),
       };
 
     default:

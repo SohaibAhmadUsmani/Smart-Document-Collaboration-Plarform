@@ -1,9 +1,25 @@
+/**
+ * @file useDocumentTagsFavorites.js
+ * @description Hook to manage document tagging and starring/favorites with optimistic UI updates.
+ * @module frontend/src/modules/editor/hooks/useDocumentTagsFavorites
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh hook document ke tags add/remove karne aur star/favorite toggle karne ke operations
+ * ko optimistic UI update ke sath perform karta hai. Network fail hone par state revert karta hai.
+ */
+
 import { useState, useCallback } from 'react';
 import { useDocumentEditor } from './useDocumentEditor.js';
 import { apiToggleFavorite, apiUpdateTags } from '../services/documentApi.js';
 
 /**
  * Hook to manage document tagging and starring/favorites.
+ *
+ * [ROMAN URDU]:
+ * Tags array, favorite status, aur mutating functions (toggleFavorite, addTag, removeTag) return karta hai.
+ *
+ * @returns {{ tags: string[], isFavorite: boolean, favoriteCount: number, isUpdating: boolean, toggleFavorite: Function, addTag: Function, removeTag: Function }}
  */
 export function useDocumentTagsFavorites() {
   const { state, toggleFavorite: dispatchToggleFav, setTags: dispatchSetTags } = useDocumentEditor();
