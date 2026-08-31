@@ -74,6 +74,94 @@ export async function createMentionNotifications({
 }
 
 /**
+ * Create a comment notification for the document owner.
+ * Sent when someone creates a top-level comment on a document they don't own.
+ *
+ * @param {Object} params
+ * @param {string} params.commentId - The saved Comment ObjectId
+ * @param {string} params.senderId - The comment author User ObjectId
+ * @param {string} params.recipientId - The document owner User ObjectId
+ * @param {string} params.documentId - The Document ObjectId
+ * @param {string} params.workspaceId - The Workspace ID
+ */
+export async function createCommentNotification({
+  commentId,
+  senderId,
+  recipientId,
+  documentId,
+  workspaceId,
+}) {
+  if (!isValidObjectId(commentId) || !isValidObjectId(senderId) || !isValidObjectId(documentId)) {
+    throw new AppError('Invalid ID provided for notification creation', 400);
+  }
+  if (!isValidObjectId(recipientId)) {
+    return;
+  }
+  if (!workspaceId || !isValidObjectId(String(workspaceId))) {
+    throw new AppError('Invalid workspace ID provided for notification creation', 400);
+  }
+
+  // Don't notify yourself
+  if (String(recipientId) === String(senderId)) {
+    return;
+  }
+
+  await Notification.create({
+    recipient: new mongoose.Types.ObjectId(recipientId),
+    sender: new mongoose.Types.ObjectId(senderId),
+    type: 'comment',
+    document: new mongoose.Types.ObjectId(documentId),
+    comment: new mongoose.Types.ObjectId(commentId),
+    workspace: new mongoose.Types.ObjectId(workspaceId),
+    read: false,
+  });
+}
+
+/**
+ * Create a reply notification for the parent comment author.
+ * Sent when someone replies to a comment they wrote.
+ *
+ * @param {Object} params
+ * @param {string} params.commentId - The reply Comment ObjectId
+ * @param {string} params.senderId - The reply author User ObjectId
+ * @param {string} params.recipientId - The parent comment author User ObjectId
+ * @param {string} params.documentId - The Document ObjectId
+ * @param {string} params.workspaceId - The Workspace ID
+ */
+export async function createReplyNotification({
+  commentId,
+  senderId,
+  recipientId,
+  documentId,
+  workspaceId,
+}) {
+  if (!isValidObjectId(commentId) || !isValidObjectId(senderId) || !isValidObjectId(documentId)) {
+    throw new AppError('Invalid ID provided for notification creation', 400);
+  }
+  if (!isValidObjectId(recipientId)) {
+    return;
+  }
+  if (!workspaceId || !isValidObjectId(String(workspaceId))) {
+    throw new AppError('Invalid workspace ID provided for notification creation', 400);
+  }
+
+  // Don't notify yourself
+  if (String(recipientId) === String(senderId)) {
+    return;
+  }
+
+  await Notification.create({
+    recipient: new mongoose.Types.ObjectId(recipientId),
+    sender: new mongoose.Types.ObjectId(senderId),
+    type: 'reply',
+    document: new mongoose.Types.ObjectId(documentId),
+    comment: new mongoose.Types.ObjectId(commentId),
+    workspace: new mongoose.Types.ObjectId(workspaceId),
+    read: false,
+  });
+}
+
+/**
  * Get all notifications for a user, sorted newest first.
  *
  * @param {string} userId - The authenticated user's ID
@@ -198,6 +286,8 @@ export async function deleteNotification(notificationId, userId) {
 
 export const notificationService = {
   createMentionNotifications,
+  createCommentNotification,
+  createReplyNotification,
   getUserNotifications,
   getUnreadNotifications,
   markNotificationAsRead,

@@ -108,6 +108,18 @@ export function documentEditorReducer(state, action) {
       };
     }
 
+    case DOCUMENT_ACTIONS.SET_DOCUMENT_ID:
+      return {
+        ...state,
+        documentId: action.payload,
+        content: null,
+        plainText: '',
+        title: 'Untitled Document',
+        activeCommentThreadId: null,
+        isDirty: false,
+        saveStatus: SAVE_STATUS.IDLE,
+      };
+
     case DOCUMENT_ACTIONS.UPDATE_TITLE:
       return {
         ...state,

@@ -224,33 +224,145 @@ const SEED_USER = {
   createdAt: new Date(),
 };
 
+// Temporary sender users for notification testing
+const SEED_SENDER_USERS = [
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000010'),
+    name: 'Sarah Chen',
+    email: 'sarah.chen@docplatform.local',
+    password: 'hashed_password_placeholder',
+    role: 'editor',
+    isEmailVerified: true,
+    createdAt: new Date(),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000011'),
+    name: 'Marcus Thorne',
+    email: 'marcus.thorne@docplatform.local',
+    password: 'hashed_password_placeholder',
+    role: 'editor',
+    isEmailVerified: true,
+    createdAt: new Date(),
+  },
+];
+
 const SEED_COMMENTS = [
   {
     _id: new mongoose.Types.ObjectId('66cc00000000000000000005'),
-    documentId: '66cc00000000000000000001',
-    authorId: 'user_ayyan_04',
-    authorName: 'Ayyan Zubair',
+    author: new mongoose.Types.ObjectId('66cc00000000000000000010'),
+    document: new mongoose.Types.ObjectId('66cc00000000000000000001'),
     body: 'The database schema and AST node extensions look well-structured! Good job on the OCC conflict handling.',
-    anchor: {
-      anchorType: 'text_selection',
-      exactQuote: 'Executive Architecture Overview',
-      from: 15,
-      to: 45,
-      prefixContext: '1. ',
-      suffixContext: 'DocSync Pro combines',
-      blockId: 'seed_block_h2_1',
-    },
-    isResolved: false,
-    replies: [
-      {
-        replyId: 'reply_seed_01',
-        authorId: 'user_lead_muzammil_01',
-        authorName: 'Muzammil',
-        body: 'Thanks Ayyan! We also added the offline write-queue and Lowlight syntax highlighting.',
-        createdAt: new Date(),
-      },
-    ],
+    anchorType: 'text_selection',
+    from: 15,
+    to: 45,
+    exactQuote: 'Executive Architecture Overview',
+    prefixContext: '1. ',
+    suffixContext: 'DocSync Pro combines',
+    blockId: 'seed_block_h2_1',
+    resolved: false,
+    parentComment: null,
+    mentions: [],
     createdAt: new Date(),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000006'),
+    author: new mongoose.Types.ObjectId('66cc00000000000000000004'),
+    document: new mongoose.Types.ObjectId('66cc00000000000000000001'),
+    body: 'Thanks Sarah! We also added the offline write-queue and Lowlight syntax highlighting.',
+    anchorType: 'text_selection',
+    from: 15,
+    to: 45,
+    exactQuote: 'Executive Architecture Overview',
+    prefixContext: '1. ',
+    suffixContext: 'DocSync Pro combines',
+    blockId: 'seed_block_h2_1',
+    resolved: false,
+    parentComment: new mongoose.Types.ObjectId('66cc00000000000000000005'),
+    mentions: [],
+    createdAt: new Date(Date.now() - 60 * 60 * 1000),
+  },
+];
+
+const RECIPIENT_ID = new mongoose.Types.ObjectId('66cc00000000000000000004');
+const SENDER_SARAH = new mongoose.Types.ObjectId('66cc00000000000000000010');
+const SENDER_MARCUS = new mongoose.Types.ObjectId('66cc00000000000000000011');
+const WORKSPACE_ID = new mongoose.Types.ObjectId('66cc00000000000000000002');
+const DOCUMENT_ID = new mongoose.Types.ObjectId('66cc00000000000000000001');
+const COMMENT_ID = new mongoose.Types.ObjectId('66cc00000000000000000005');
+
+const SEED_NOTIFICATIONS = [
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000020'),
+    recipient: RECIPIENT_ID,
+    sender: SENDER_SARAH,
+    type: 'mention',
+    document: DOCUMENT_ID,
+    comment: COMMENT_ID,
+    workspace: WORKSPACE_ID,
+    read: false,
+    createdAt: new Date(Date.now() - 5 * 60 * 1000),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000021'),
+    recipient: RECIPIENT_ID,
+    sender: SENDER_MARCUS,
+    type: 'comment',
+    document: DOCUMENT_ID,
+    comment: COMMENT_ID,
+    workspace: WORKSPACE_ID,
+    read: false,
+    createdAt: new Date(Date.now() - 30 * 60 * 1000),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000022'),
+    recipient: RECIPIENT_ID,
+    sender: SENDER_SARAH,
+    type: 'reply',
+    document: DOCUMENT_ID,
+    comment: COMMENT_ID,
+    workspace: WORKSPACE_ID,
+    read: false,
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000023'),
+    recipient: RECIPIENT_ID,
+    sender: SENDER_MARCUS,
+    type: 'share',
+    document: DOCUMENT_ID,
+    workspace: WORKSPACE_ID,
+    read: false,
+    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000024'),
+    recipient: RECIPIENT_ID,
+    sender: SENDER_SARAH,
+    type: 'permission_change',
+    document: DOCUMENT_ID,
+    workspace: WORKSPACE_ID,
+    read: true,
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000025'),
+    recipient: RECIPIENT_ID,
+    sender: SENDER_MARCUS,
+    type: 'document_update',
+    document: DOCUMENT_ID,
+    workspace: WORKSPACE_ID,
+    read: true,
+    createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+  },
+  {
+    _id: new mongoose.Types.ObjectId('66cc00000000000000000026'),
+    recipient: RECIPIENT_ID,
+    sender: SENDER_SARAH,
+    type: 'comment',
+    document: DOCUMENT_ID,
+    workspace: WORKSPACE_ID,
+    read: true,
+    createdAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
   },
 ];
 
@@ -358,6 +470,28 @@ export async function seedDatabase() {
   }
   console.log('✅ Seeded sample comment threads');
 
+  // 5b. Provision sender users for notification testing
+  const authUserCol = db.collection('users');
+  for (const sender of SEED_SENDER_USERS) {
+    await authUserCol.updateOne(
+      { _id: sender._id },
+      { $set: sender },
+      { upsert: true }
+    );
+  }
+  console.log('✅ Seeded sender users for notification testing (Sarah Chen, Marcus Thorne)');
+
+  // 5c. Provision & Populate 'notifications' Collection
+  const notifCol = db.collection('notifications');
+  for (const notif of SEED_NOTIFICATIONS) {
+    await notifCol.updateOne(
+      { _id: notif._id },
+      { $set: notif },
+      { upsert: true }
+    );
+  }
+  console.log('✅ Seeded 7 test notifications (4 unread, 3 read) for Muzammil');
+
   // 6. Provision & Populate Placeholder Collections (Files, Versions, ActivityLogs)
   const filesCol = db.collection('files');
   await filesCol.updateOne(
@@ -416,6 +550,7 @@ export async function seedDatabase() {
   try { await docCol.createIndex({ title: 'text', plainText: 'text' }, { weights: { title: 10, plainText: 2 }, name: 'DocumentFullTextIndex' }); } catch (e) {}
   try { await docCol.createIndex({ scheduledPermanentDeletionAt: 1 }, { expireAfterSeconds: 0 }); } catch (e) {}
   try { await commentCol.createIndex({ documentId: 1, isResolved: 1 }); } catch (e) {}
+  try { await notifCol.createIndex({ recipient: 1, read: 1, createdAt: -1 }); } catch (e) {}
   try { await wsCol.createIndex({ ownerId: 1 }); } catch (e) {}
 
   console.log('🎉 [Database Seeder Complete]: All collections and live documents provisioned in MongoDB Atlas.');

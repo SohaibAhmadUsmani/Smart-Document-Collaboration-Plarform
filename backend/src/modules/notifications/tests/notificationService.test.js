@@ -28,6 +28,7 @@ function buildQueryChain(result) {
 const mockNotificationModel = {
   find: mock.fn(() => buildQueryChain([])),
   findOne: mock.fn(() => buildQueryChain(null)),
+  create: mock.fn(async () => ({})),
   insertMany: mock.fn(async () => []),
   updateMany: mock.fn(() => ({
     exec: mock.fn(async () => ({ modifiedCount: 0 })),
@@ -394,5 +395,163 @@ test('deleteNotification: throws 404 for non-existent notification', async () =>
   await assert.rejects(
     () => notificationService.deleteNotification(VALID_NOTIF_ID, VALID_USER_ID),
     (err) => { assert.equal(err.status, 404); return true; },
+  );
+});
+
+// ─── createCommentNotification ───────────────────────────────────────────────
+
+test('createCommentNotification: creates a comment notification for document owner', async () => {
+  mockNotificationModel.create.mock.mockImplementation(async (doc) => doc);
+
+  await notificationService.createCommentNotification({
+    commentId: VALID_COMMENT_ID,
+    senderId: VALID_USER_ID,
+    recipientId: OTHER_USER_ID,
+    documentId: VALID_DOC_ID,
+    workspaceId: VALID_WORKSPACE_ID,
+  });
+
+  const calls = mockNotificationModel.create.mock.calls;
+  assert.ok(calls.length > 0);
+  const notif = calls[calls.length - 1].arguments[0];
+  assert.equal(notif.type, 'comment');
+  assert.equal(notif.recipient.toString(), OTHER_USER_ID);
+  assert.equal(notif.sender.toString(), VALID_USER_ID);
+  assert.equal(notif.document.toString(), VALID_DOC_ID);
+  assert.equal(notif.comment.toString(), VALID_COMMENT_ID);
+  assert.equal(notif.workspace.toString(), VALID_WORKSPACE_ID);
+  assert.equal(notif.read, false);
+});
+
+test('createCommentNotification: skips notification when sender is document owner', async () => {
+  const callsBefore = mockNotificationModel.create.mock.calls.length;
+
+  await notificationService.createCommentNotification({
+    commentId: VALID_COMMENT_ID,
+    senderId: VALID_USER_ID,
+    recipientId: VALID_USER_ID,
+    documentId: VALID_DOC_ID,
+    workspaceId: VALID_WORKSPACE_ID,
+  });
+
+  assert.equal(mockNotificationModel.create.mock.calls.length, callsBefore);
+});
+
+test('createCommentNotification: returns early for invalid recipientId', async () => {
+  const callsBefore = mockNotificationModel.create.mock.calls.length;
+
+  await notificationService.createCommentNotification({
+    commentId: VALID_COMMENT_ID,
+    senderId: VALID_USER_ID,
+    recipientId: 'invalid-id',
+    documentId: VALID_DOC_ID,
+    workspaceId: VALID_WORKSPACE_ID,
+  });
+
+  assert.equal(mockNotificationModel.create.mock.calls.length, callsBefore);
+});
+
+test('createCommentNotification: rejects invalid commentId', async () => {
+  await assert.rejects(
+    () => notificationService.createCommentNotification({
+      commentId: INVALID_ID,
+      senderId: VALID_USER_ID,
+      recipientId: OTHER_USER_ID,
+      documentId: VALID_DOC_ID,
+      workspaceId: VALID_WORKSPACE_ID,
+    }),
+    (err) => { assert.equal(err.status, 400); return true; },
+  );
+});
+
+test('createCommentNotification: rejects invalid workspaceId', async () => {
+  await assert.rejects(
+    () => notificationService.createCommentNotification({
+      commentId: VALID_COMMENT_ID,
+      senderId: VALID_USER_ID,
+      recipientId: OTHER_USER_ID,
+      documentId: VALID_DOC_ID,
+      workspaceId: INVALID_ID,
+    }),
+    (err) => { assert.equal(err.status, 400); return true; },
+  );
+});
+
+// ─── createReplyNotification ─────────────────────────────────────────────────
+
+test('createReplyNotification: creates a reply notification for parent comment author', async () => {
+  mockNotificationModel.create.mock.mockImplementation(async (doc) => doc);
+
+  await notificationService.createReplyNotification({
+    commentId: VALID_COMMENT_ID,
+    senderId: VALID_USER_ID,
+    recipientId: OTHER_USER_ID,
+    documentId: VALID_DOC_ID,
+    workspaceId: VALID_WORKSPACE_ID,
+  });
+
+  const calls = mockNotificationModel.create.mock.calls;
+  assert.ok(calls.length > 0);
+  const notif = calls[calls.length - 1].arguments[0];
+  assert.equal(notif.type, 'reply');
+  assert.equal(notif.recipient.toString(), OTHER_USER_ID);
+  assert.equal(notif.sender.toString(), VALID_USER_ID);
+  assert.equal(notif.document.toString(), VALID_DOC_ID);
+  assert.equal(notif.comment.toString(), VALID_COMMENT_ID);
+  assert.equal(notif.workspace.toString(), VALID_WORKSPACE_ID);
+  assert.equal(notif.read, false);
+});
+
+test('createReplyNotification: skips notification when sender is reply target', async () => {
+  const callsBefore = mockNotificationModel.create.mock.calls.length;
+
+  await notificationService.createReplyNotification({
+    commentId: VALID_COMMENT_ID,
+    senderId: VALID_USER_ID,
+    recipientId: VALID_USER_ID,
+    documentId: VALID_DOC_ID,
+    workspaceId: VALID_WORKSPACE_ID,
+  });
+
+  assert.equal(mockNotificationModel.create.mock.calls.length, callsBefore);
+});
+
+test('createReplyNotification: returns early for invalid recipientId', async () => {
+  const callsBefore = mockNotificationModel.create.mock.calls.length;
+
+  await notificationService.createReplyNotification({
+    commentId: VALID_COMMENT_ID,
+    senderId: VALID_USER_ID,
+    recipientId: 'invalid-id',
+    documentId: VALID_DOC_ID,
+    workspaceId: VALID_WORKSPACE_ID,
+  });
+
+  assert.equal(mockNotificationModel.create.mock.calls.length, callsBefore);
+});
+
+test('createReplyNotification: rejects invalid commentId', async () => {
+  await assert.rejects(
+    () => notificationService.createReplyNotification({
+      commentId: INVALID_ID,
+      senderId: VALID_USER_ID,
+      recipientId: OTHER_USER_ID,
+      documentId: VALID_DOC_ID,
+      workspaceId: VALID_WORKSPACE_ID,
+    }),
+    (err) => { assert.equal(err.status, 400); return true; },
+  );
+});
+
+test('createReplyNotification: rejects invalid workspaceId', async () => {
+  await assert.rejects(
+    () => notificationService.createReplyNotification({
+      commentId: VALID_COMMENT_ID,
+      senderId: VALID_USER_ID,
+      recipientId: OTHER_USER_ID,
+      documentId: VALID_DOC_ID,
+      workspaceId: INVALID_ID,
+    }),
+    (err) => { assert.equal(err.status, 400); return true; },
   );
 });
