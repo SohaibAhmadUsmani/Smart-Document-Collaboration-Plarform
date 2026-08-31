@@ -20,8 +20,6 @@ import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
 import { CollaborationProvider } from '../../collaboration/context/CollaborationContext.jsx';
 import { useDocumentCollaboration } from '../../collaboration/hooks/useDocumentCollaboration.js';
 import { ActiveUsers } from '../../collaboration/components/ActiveUsers.jsx';
-import { apiGetDocument, apiAddAttachment } from '../services/documentApi.js';
-
 import { ConflictResolutionModal } from './ConflictResolutionModal.jsx';
 import { apiGetDocument, apiAddAttachment, apiCreateDocument } from '../services/documentApi.js';
 import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
