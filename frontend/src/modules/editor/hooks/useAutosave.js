@@ -1,10 +1,36 @@
+/**
+ * @file useAutosave.js
+ * @description Custom React hook for debounced real-time autosaving with offline localStorage queue and OCC 409 conflict detection.
+ * @module frontend/src/modules/editor/hooks/useAutosave
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh custom hook document content ko debounce (1500ms) karke backend par autosave karta hai.
+ * Agar internet connection na ho toh changes ko `localStorage` queue mein store karta hai aur
+ * reconnect hone par automatically sync karta hai. Agar server par newer version save ho chuka ho
+ * toh 409 conflict detect karke conflict callback trigger karta hai.
+ */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiAutosaveDocument } from '../services/documentApi.js';
 import { SAVE_STATUS, AUTOSAVE_DEFAULT_DEBOUNCE_MS } from '../types/document.js';
 
 /**
- * Custom React hook for debounced real-time autosaving of document content
- * with offline localStorage queue and 409 conflict detection.
+ * Hook for managing document autosave lifecycle.
+ *
+ * [ROMAN URDU]:
+ * Autosave hook jo saving status, last saved timestamp, offline queue status,
+ * aur manual `saveNow` trigger return karta hai.
+ *
+ * @param {Object} options
+ * @param {string} options.documentId - Target document ObjectId
+ * @param {Object} options.content - Current TipTap JSON AST content
+ * @param {string} [options.plainText=''] - Current plain text string
+ * @param {number} [options.currentVersion=1] - Base document version for OCC
+ * @param {boolean} [options.enabled=true] - Flag to enable or disable autosave
+ * @param {number} [options.debounceMs=1500] - Debounce delay in milliseconds
+ * @param {Function|null} [options.onConflictDetected=null] - Callback when 409 conflict occurs
+ * @returns {{ status: string, lastSavedAt: Date|null, error: string|null, isOfflineQueued: boolean, saveNow: Function }}
  */
 export function useAutosave({
   documentId,
@@ -160,4 +186,3 @@ export function useAutosave({
     saveNow,
   };
 }
-
