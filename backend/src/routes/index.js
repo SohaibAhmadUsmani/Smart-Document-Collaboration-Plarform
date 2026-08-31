@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { authRouter } from '../modules/auth/auth.routes.js';
+import { usersRouter } from '../modules/auth/users.routes.js';
 import { documentRouter } from '../modules/documents/document.routes.js';
 import { workspaceRouter, folderRouter } from '../modules/workspaces/routes/workspaceRoutes.js';
 import { commentRouter } from '../modules/comments/routes/commentRoutes.js';
@@ -10,6 +12,9 @@ import { historyRouter } from '../modules/history-search/historyRoutes.js';
 
 export const apiRouter = Router();
 registerDocumentActivityListeners();
+
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/users', usersRouter);
 
 apiRouter.use('/documents', documentRouter);
 apiRouter.use('/workspaces', workspaceRouter);

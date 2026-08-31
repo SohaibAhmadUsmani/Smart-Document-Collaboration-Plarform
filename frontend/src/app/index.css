@@ -1,6 +1,30 @@
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
+/* Workspaces-module tokens (Khadija). */
+@theme {
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-ink-900: #111827;
+  --color-ink-700: #374151;
+  --color-ink-500: #6b7280;
+  --color-ink-400: #9ca3af;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-soft: #eff6ff;
+  --color-role-owner: #7c3aed;
+  --color-role-editor: #2563eb;
+  --color-role-commenter: #d97706;
+  --color-role-viewer: #6b7280;
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --shadow-card: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
+  --shadow-popover: 0 4px 16px -2px rgba(16, 24, 40, 0.12);
+  --radius-xl: 0.75rem;
+}
 
 /* ==========================================================================
    DOCSYNC PRO: DESIGN SYSTEM SCALES, KEYFRAMES & ELEVATION TOKENS
