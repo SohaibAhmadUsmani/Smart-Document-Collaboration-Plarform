@@ -13,9 +13,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Command, User, Settings, LogOut } from 'lucide-react';
+import { Search, ChevronDown, Command, User, Settings, LogOut, X } from 'lucide-react';
 import { NotificationBell } from '../../notifications/components/NotificationBell.jsx';
-import { MOCK_CURRENT_USER } from '../services/mockData.js';
 
 /**
  * TopGlobalHeader Component (DocSync Pro Global Navigation).
@@ -29,9 +28,51 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [showProfile, setShowProfile] = useState(false);
+  const [currentUser, setCurrentUser] = useState({
+    name: 'Loading...',
+    email: '',
+    avatar: 'https://ui-avatars.com/api/?name=User&background=random'
+  });
+  
   const searchInputRef = useRef(null);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/users/me', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // The API returns { success: true, data: user }
+          const user = data.data || data;
+          setCurrentUser({
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`
+          });
+        } else {
+          // Fallback if not logged in but DEV_FAKE_AUTH is active
+          setCurrentUser({
+            name: 'Guest User',
+            email: 'guest@docplatform.local',
+            avatar: 'https://ui-avatars.com/api/?name=Guest&background=random'
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile', err);
+      }
+    }
+    fetchUser();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  };
 
   // Global CMD+K shortcut listener to focus search
   useEffect(() => {
@@ -130,16 +171,16 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
             }}
             aria-haspopup="menu"
             aria-expanded={showProfile}
-            aria-label={`User account menu for ${MOCK_CURRENT_USER.name}`}
+            aria-label={`User account menu for ${currentUser.name}`}
             className="flex items-center gap-1.5 sm:gap-2 pl-1 pr-1.5 sm:pr-2 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
           >
             <img
-              src={MOCK_CURRENT_USER.avatar}
-              alt={MOCK_CURRENT_USER.name}
+              src={currentUser.avatar}
+              alt={currentUser.name}
               className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
             />
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 hidden md:inline">
-              {MOCK_CURRENT_USER.name}
+              {currentUser.name}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
@@ -151,8 +192,8 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
               className="absolute right-0 top-11 w-52 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-50 text-xs text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100"
             >
               <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800">
-                <p className="font-bold text-slate-900 dark:text-white">{MOCK_CURRENT_USER.name}</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{MOCK_CURRENT_USER.email}</p>
+                <p className="font-bold text-slate-900 dark:text-white">{currentUser.name}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{currentUser.email}</p>
               </div>
               <button
                 type="button"
@@ -175,7 +216,7 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
                 type="button"
                 role="menuitem"
                 className="w-full text-left px-3.5 py-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center gap-2"
-                onClick={() => setShowProfile(false)}
+                onClick={handleLogout}
               >
                 <LogOut className="w-3.5 h-3.5 text-red-500" /> Sign out
               </button>
