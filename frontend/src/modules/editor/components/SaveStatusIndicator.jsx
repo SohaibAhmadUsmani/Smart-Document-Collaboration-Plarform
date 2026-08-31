@@ -1,77 +1,82 @@
+/**
+ * @file SaveStatusIndicator.jsx
+ * @description Autosave state badge pill component.
+ * Renders visual indicators for saving, saved, offline saved, version conflict, and sync error states.
+ * @module frontend/src/modules/editor/components/SaveStatusIndicator
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh component document ke autosave status ki live visual pill render karta hai:
+ * - Saving: Rotating spinner ke sath
+ * - Saved: Green checkmark aur last saved timestamp ke sath
+ * - Offline Saved: Yellow indicator
+ * - Conflict: Red alert badge
+ */
+
 import React from 'react';
 import { SAVE_STATUS } from '../types/document.js';
+import { Check, Loader2, AlertCircle, CloudOff } from 'lucide-react';
 
 /**
- * Visual indicator component for document autosave state.
+ * Autosave status indicator pill.
+ *
+ * [ROMAN URDU]:
+ * Autosave status indicator component.
  *
  * @param {Object} props
- * @param {string} props.status - One of SAVE_STATUS ('idle', 'saving', 'saved', 'error')
- * @param {Date|null} [props.lastSavedAt] - Timestamp of the last successful save
- * @param {string|null} [props.error] - Optional error message
+ * @param {string} props.status - Current save status token from SAVE_STATUS enum
+ * @param {Date|string|null} [props.lastSavedAt] - Timestamp of last successful save
+ * @returns {React.JSX.Element}
  */
-export function SaveStatusIndicator({ status, lastSavedAt, error }) {
-  if (status === SAVE_STATUS.SAVING) {
-    return (
-      <div className="flex items-center gap-1.5 text-xs text-blue-600 font-medium">
-        <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-        <span>Saving changes...</span>
-      </div>
-    );
-  }
+export function SaveStatusIndicator({ status, lastSavedAt }) {
+  const formatTime = (time) => {
+    if (!time) return '';
+    const date = new Date(time);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
-  if (status === SAVE_STATUS.OFFLINE_SAVED) {
-    return (
-      <div
-        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200"
-        title="Network disconnected. Edits are securely buffered locally and will sync when online."
-      >
-        <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-        <span>Offline (Saved locally)</span>
-      </div>
-    );
-  }
+  switch (status) {
+    case SAVE_STATUS.SAVING:
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <span>Saving...</span>
+        </div>
+      );
 
-  if (status === SAVE_STATUS.CONFLICT) {
-    return (
-      <div
-        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200"
-        title={error || 'Version conflict detected'}
-      >
-        <span className="inline-block w-2 h-2 rounded-full bg-rose-600" />
-        <span>Version Conflict</span>
-      </div>
-    );
-  }
+    case SAVE_STATUS.OFFLINE_SAVED:
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium" title="Buffered locally in browser storage">
+          <CloudOff className="w-3.5 h-3.5" />
+          <span>Saved Offline</span>
+        </div>
+      );
 
-  if (status === SAVE_STATUS.ERROR) {
-    return (
-      <div
-        className="flex items-center gap-1.5 text-xs text-red-600"
-        title={error || 'Failed to save changes'}
-      >
-        <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
-        <span>Failed to save</span>
-      </div>
-    );
-  }
+    case SAVE_STATUS.CONFLICT:
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-bold" title="Version mismatch with server">
+          <AlertCircle className="w-3.5 h-3.5" />
+          <span>Conflict Detected</span>
+        </div>
+      );
 
-  if (status === SAVE_STATUS.SAVED && lastSavedAt) {
-    return (
-      <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-        <span>
-          Saved at {new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
-      </div>
-    );
-  }
+    case SAVE_STATUS.ERROR:
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-rose-500 font-medium">
+          <AlertCircle className="w-3.5 h-3.5" />
+          <span>Save Failed</span>
+        </div>
+      );
 
-  return (
-    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-      <span className="inline-block w-2 h-2 rounded-full bg-slate-300" />
-      <span>All changes saved</span>
-    </div>
-  );
+    case SAVE_STATUS.SAVED:
+    default:
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+          <Check className="w-3.5 h-3.5" />
+          <span>Saved {lastSavedAt ? `at ${formatTime(lastSavedAt)}` : ''}</span>
+        </div>
+      );
+  }
 }
 
-
+export default SaveStatusIndicator;

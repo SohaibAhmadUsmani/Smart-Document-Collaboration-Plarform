@@ -1,3 +1,16 @@
+/**
+ * @file document.routes.js
+ * @description Express routing configuration for the Document Editor module in DocSync Pro.
+ * Mounts validation middleware, permission authorization guards, and controller actions.
+ * @module backend/src/modules/documents/document.routes
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh file DocSync Pro documents module ke tamam REST API endpoints define karti hai.
+ * Tamam routes par `requireAuth` middleware laga hai, aur specific routes par Khadija ke
+ * `requireDocumentAccess` permission checks (view, edit, delete, restore) aur validation guards shamil hain.
+ */
+
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireDocumentAccess } from '../../middleware/documentPermissions.js';

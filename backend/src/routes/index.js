@@ -15,6 +15,7 @@ registerDocumentActivityListeners();
 
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/users', usersRouter);
+
 apiRouter.use('/documents', documentRouter);
 apiRouter.use('/workspaces', workspaceRouter);
 apiRouter.use('/folders', folderRouter);
