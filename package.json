@@ -19,7 +19,6 @@
     "test:comments": "node --experimental-test-module-mocks --test backend/src/modules/comments/tests/*.test.js",
     "test:notifications": "node --experimental-test-module-mocks --test backend/src/modules/notifications/tests/*.test.js"
   },
-
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",

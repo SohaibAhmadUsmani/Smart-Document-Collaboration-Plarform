@@ -1,7 +1,44 @@
+/**
+ * @file document.model.js
+ * @description Mongoose schema and model definition for documents in DocSync Pro.
+ * Includes schemas for rich attachments, ProseMirror JSON AST content, tags,
+ * soft-deletion metadata, and optimistic concurrency version tracking.
+ * @module backend/src/modules/documents/document.model
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh file DocSync Pro ke documents ke liye Mongoose data model define karti hai.
+ * Isme document ka content (TipTap/ProseMirror JSON AST structure), versioning (OCC),
+ * soft deletion lifecycle (30-day auto-purge TTL), attachments, aur text indexing shamil hain.
+ */
+
 import mongoose from 'mongoose';
 
 /**
- * Rich Attachment Subdocument Schema
+ * Shared transformation logic for Mongoose toJSON and toObject virtuals.
+ * Ensures `id` is exposed and internal `__v` is removed.
+ *
+ * [ROMAN URDU]:
+ * Yeh helper function documents ke JSON/Object conversion ko normalize karta hai,
+ * `_id` ko `id` string mein convert karta hai aur internal `__v` strip karta hai.
+ *
+ * @param {Object} _ - Source document
+ * @param {Object} ret - Plain object representation
+ * @returns {Object} Cleaned plain object
+ */
+const transformDocument = (_, ret) => {
+  ret.id = ret._id.toString();
+  delete ret.__v;
+  return ret;
+};
+
+/**
+ * Rich Attachment Subdocument Schema.
+ * Embeds metadata for binary files linked to the document or specific node anchors.
+ *
+ * [ROMAN URDU]:
+ * Yeh sub-schema document ke andar attach kiye gaye files ki metadata save karta hai
+ * (jaise file size, storageKey, downloadUrl aur optional nodeAnchorId).
  */
 const AttachmentSubSchema = new mongoose.Schema(
   {
@@ -58,7 +95,13 @@ const AttachmentSubSchema = new mongoose.Schema(
 );
 
 /**
- * Main Document Schema
+ * Main Document Schema.
+ * Defines the core document persistence contract for DocSync Pro.
+ *
+ * [ROMAN URDU]:
+ * Document ka main schema. Isme workspace isolation (workspaceId), nested folder support (folderId),
+ * TipTap AST content, search plainText, optimistic concurrency version (OCC), aur 30-day soft-delete
+ * fields configured hain.
  */
 const DocumentSchema = new mongoose.Schema(
   {
@@ -159,7 +202,6 @@ const DocumentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-
     previousFolderId: {
       type: String,
       default: null,
@@ -182,25 +224,12 @@ const DocumentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: {
-      virtuals: true,
-      transform: (_, ret) => {
-        ret.id = ret._id.toString();
-        delete ret.__v;
-        return ret;
-      },
-    },
-    toObject: {
-      virtuals: true,
-      transform: (_, ret) => {
-        ret.id = ret._id.toString();
-        delete ret.__v;
-        return ret;
-      },
-    },
+    toJSON: { virtuals: true, transform: transformDocument },
+    toObject: { virtuals: true, transform: transformDocument },
   }
 );
 
+// High-performance compound indexes for multi-tenant workspace queries
 DocumentSchema.index({ workspaceId: 1, isArchived: 1, updatedAt: -1 });
 DocumentSchema.index({ workspaceId: 1, folderId: 1, isArchived: 1 });
 DocumentSchema.index({ workspaceId: 1, tags: 1, isArchived: 1 });
@@ -213,4 +242,3 @@ DocumentSchema.index(
 );
 
 export const DocumentModel = mongoose.models.Document || mongoose.model('Document', DocumentSchema);
-

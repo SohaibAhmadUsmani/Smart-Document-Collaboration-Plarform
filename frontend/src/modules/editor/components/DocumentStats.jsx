@@ -1,37 +1,66 @@
-import React from 'react';
+/**
+ * @file DocumentStats.jsx
+ * @description Compact document metrics badge widget.
+ * Computes and displays live word count, character count, and reading time.
+ * @module frontend/src/modules/editor/components/DocumentStats
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh widget document ke plain text se live word count, characters count,
+ * aur estimated reading time calculate karke badges ki shakal mein render karta hai.
+ */
+
+import React, { useMemo } from 'react';
 
 /**
- * Live document metrics counter widget.
- * Computes words, characters, and reading time in real time.
+ * Calculates document word count, character count, and estimated reading time (~200 wpm).
+ * [ROMAN URDU]: Text ke alfaz, huroof aur parhne ka waqt shumar karta hai.
+ *
+ * @param {string} [text=''] - Document plain text content
+ * @returns {{ words: number, characters: number, readingTimeMinutes: number }}
+ */
+export function calculateDocumentStats(text = '') {
+  const clean = String(text || '').trim();
+  const words = clean ? clean.split(/\s+/).filter(Boolean).length : 0;
+  const characters = String(text || '').length;
+  const readingTimeMinutes = Math.max(1, Math.ceil(words / 200));
+  return { words, characters, readingTimeMinutes };
+}
+
+/**
+ * Compact document statistics widget.
+ *
+ * [ROMAN URDU]:
+ * Document statistics badges component.
  *
  * @param {Object} props
- * @param {string} [props.plainText=''] - Plain text extracted from document AST.
+ * @param {string} [props.text=''] - Document plain text content
+ * @param {string} [props.className=''] - Additional CSS classes
+ * @returns {React.JSX.Element}
  */
-export function DocumentStats({ plainText = '' }) {
-  const trimmed = (plainText || '').trim();
-  const words = trimmed ? trimmed.split(/\s+/).filter(Boolean).length : 0;
-  const characters = (plainText || '').length;
-  const readingTime = Math.max(1, Math.ceil(words / 200));
+export function DocumentStats({ text = '', className = '' }) {
+  const stats = useMemo(() => {
+    return calculateDocumentStats(text);
+  }, [text]);
 
   return (
     <div
-      aria-label="Document statistics"
-      className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 select-none py-2 px-4 border-t border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky bottom-0"
+      className={`flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 ${className}`}
+      aria-label="Document Statistics"
     >
-      <div className="flex items-center gap-1">
-        <span className="font-semibold text-slate-700 dark:text-slate-300">{words.toLocaleString()}</span>
-        <span>words</span>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <span className="font-semibold text-slate-700 dark:text-slate-300">{characters.toLocaleString()}</span>
-        <span>characters</span>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <span className="font-semibold text-slate-700 dark:text-slate-300">{words > 0 ? `~${readingTime}` : '0'}</span>
-        <span>min read</span>
-      </div>
+      <span title="Word Count">
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">{stats.words}</strong> words
+      </span>
+      <span className="text-slate-300 dark:text-slate-700">•</span>
+      <span title="Character Count">
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">{stats.characters}</strong> chars
+      </span>
+      <span className="text-slate-300 dark:text-slate-700">•</span>
+      <span title="Estimated Reading Time">
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">{stats.readingTimeMinutes}</strong> min read
+      </span>
     </div>
   );
 }
+
+export default DocumentStats;

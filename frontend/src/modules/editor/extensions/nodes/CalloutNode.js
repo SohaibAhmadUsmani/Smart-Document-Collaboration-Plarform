@@ -1,5 +1,23 @@
+/**
+ * @file CalloutNode.js
+ * @description ProseMirror block node extension for Callout / Alert notices in DocSync Pro.
+ * Supports info, warning, success, and danger callout styles.
+ * @module frontend/src/modules/editor/extensions/nodes/CalloutNode
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh custom ProseMirror container node hai jo `<aside data-callout-type="..."/>` render karta hai.
+ * Important alerts, quotes, aur notice boxes ke liye istemal hota hai.
+ */
+
 import { Node, mergeAttributes } from '@tiptap/core';
 
+/**
+ * Custom Callout / Notice Block Node.
+ *
+ * [ROMAN URDU]:
+ * TipTap Node schema jo callout type (info, warning, etc.) aur unique blockId ko track karta hai.
+ */
 export const CalloutNode = Node.create({
   name: 'callout',
   group: 'block',

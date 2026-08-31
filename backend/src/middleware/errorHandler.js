@@ -5,6 +5,7 @@ export function errorHandler(error, request, response, next) {
 
   const status = error.status ?? 500;
   response.status(status).json({
-    error: status === 500 ? 'Internal server error' : error.message
+    error: status === 500 ? console.error(error) : error.message
   });
+ 
 }

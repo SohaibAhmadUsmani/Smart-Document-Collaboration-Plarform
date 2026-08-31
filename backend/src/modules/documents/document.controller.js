@@ -1,13 +1,44 @@
+/**
+ * @file document.controller.js
+ * @description Express HTTP request controllers for document operations in DocSync Pro.
+ * Handles document creation, retrieval, listing, autosave, tagging, exports,
+ * batch operations, AST search, and trash management.
+ * @module backend/src/modules/documents/document.controller
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh file DocSync Pro ke document module ke Express HTTP controllers par mushtamil hai.
+ * Request parameters ko parse karna, user ID extract karna, service functions call karna,
+ * aur RESTful JSON responses (200, 201, 400, 404, 409 Conflict) return karna iski zimadari hai.
+ */
+
 import * as documentService from './document.service.js';
 import * as batchService from './documentBatch.service.js';
 import * as astSearchService from './documentAstSearch.service.js';
 
+/**
+ * Extracts authenticated user ID from Express request.
+ *
+ * [ROMAN URDU]:
+ * Request object se authenticated user ki ID extract karta hai, warna fallback 'anonymous-user' deta hai.
+ *
+ * @param {Object} req - Express request
+ * @returns {string} User identifier
+ */
 function getUserId(req) {
   return req.user?.id || req.user?._id || 'anonymous-user';
 }
 
 /**
- * Handler to create a new document.
+ * Handles creation of a new document.
+ *
+ * [ROMAN URDU]:
+ * Naya document create karne ka HTTP handler. Status 201 ke sath newly created document data return karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function createDocumentHandler(req, res, next) {
   try {
@@ -25,7 +56,15 @@ export async function createDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to fetch a single document by ID.
+ * Handles fetching a single document by its ID.
+ *
+ * [ROMAN URDU]:
+ * Document ID ke mutabiq single document return karta hai. Agar document na mile toh 404 error response deta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function getDocumentHandler(req, res, next) {
   try {
@@ -50,7 +89,16 @@ export async function getDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to list documents for a workspace with sorting, tags, favorites, and search.
+ * Handles listing documents in a workspace with filters, search, and pagination.
+ *
+ * [ROMAN URDU]:
+ * Workspace ke documents list karta hai. Query parameters (tags, folder, favorites, search query, sorting)
+ * ko handle karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function listDocumentsHandler(req, res, next) {
   try {
@@ -95,7 +143,15 @@ export async function listDocumentsHandler(req, res, next) {
 }
 
 /**
- * Handler to update document metadata.
+ * Handles document metadata updates (title, icon, cover image, folder).
+ *
+ * [ROMAN URDU]:
+ * Document ke metadata fields (title, icon, cover, folderId) ko update karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function updateDocumentHandler(req, res, next) {
   try {
@@ -122,7 +178,16 @@ export async function updateDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to autosave document rich-text content.
+ * Handles real-time debounced autosave of rich-text content with OCC conflict detection.
+ *
+ * [ROMAN URDU]:
+ * Rich-text content autosave handler. Agar client ka `baseVersion` database ke version se match na kare
+ * toh 409 Conflict return karta hai taake concurrent edits overwrite na hon.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function autosaveDocumentHandler(req, res, next) {
   try {
@@ -162,9 +227,16 @@ export async function autosaveDocumentHandler(req, res, next) {
   }
 }
 
-
 /**
- * Handler to toggle star/favorite on a document.
+ * Handles toggling star/favorite status for the authenticated user on a document.
+ *
+ * [ROMAN URDU]:
+ * User ke liye document ka favorite star status toggle karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function toggleFavoriteHandler(req, res, next) {
   try {
@@ -191,7 +263,15 @@ export async function toggleFavoriteHandler(req, res, next) {
 }
 
 /**
- * Handler to update document tags.
+ * Handles updating document tags.
+ *
+ * [ROMAN URDU]:
+ * Document ke tags ko replace/update karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function updateTagsHandler(req, res, next) {
   try {
@@ -219,7 +299,15 @@ export async function updateTagsHandler(req, res, next) {
 }
 
 /**
- * Handler to get all unique tags across a workspace.
+ * Handles retrieving aggregated tags and usage counts for a workspace.
+ *
+ * [ROMAN URDU]:
+ * Workspace ke tamam unique tags aur unke counts return karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function getWorkspaceTagsHandler(req, res, next) {
   try {
@@ -244,7 +332,15 @@ export async function getWorkspaceTagsHandler(req, res, next) {
 }
 
 /**
- * Handler to link an attachment reference to a document.
+ * Handles linking a file attachment to a document.
+ *
+ * [ROMAN URDU]:
+ * Document ke sath naya file attachment metadata link karta hai (201 status).
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function addAttachmentHandler(req, res, next) {
   try {
@@ -271,7 +367,15 @@ export async function addAttachmentHandler(req, res, next) {
 }
 
 /**
- * Handler to unlink an attachment.
+ * Handles unlinking an attachment from a document.
+ *
+ * [ROMAN URDU]:
+ * Document se attachment delete / unlink karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function removeAttachmentHandler(req, res, next) {
   try {
@@ -297,7 +401,15 @@ export async function removeAttachmentHandler(req, res, next) {
 }
 
 /**
- * Handler for deep AST content search.
+ * Handles deep AST content searching across workspace documents.
+ *
+ * [ROMAN URDU]:
+ * Document AST ke andar deep node type aur regex text match karke snippets return karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function astSearchHandler(req, res, next) {
   try {
@@ -320,13 +432,20 @@ export async function astSearchHandler(req, res, next) {
 }
 
 /**
- * Handler for multi-document batch operations.
+ * Handles multi-document batch operations (archive, restore, move, tag, duplicate, delete_permanent).
+ *
+ * [ROMAN URDU]:
+ * Ek sath multiple documents par batch operations (move, tag, delete, archive) execute karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function batchOperationsHandler(req, res, next) {
   try {
     const { action, documentIds, payload } = req.body;
     const userId = getUserId(req);
-
     const result = await batchService.executeBatchOperation(action, documentIds, payload, userId);
 
     return res.status(200).json({
@@ -340,7 +459,15 @@ export async function batchOperationsHandler(req, res, next) {
 }
 
 /**
- * Handler to duplicate an existing document.
+ * Handles duplicating an existing document.
+ *
+ * [ROMAN URDU]:
+ * Mojooda document ka clone banata hai (201 Created).
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function duplicateDocumentHandler(req, res, next) {
   try {
@@ -367,13 +494,20 @@ export async function duplicateDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to export document content.
+ * Handles document export in markdown, json, or text format.
+ *
+ * [ROMAN URDU]:
+ * Document ko requested format (Markdown, JSON, Plain Text) mein convert karke download headers ke sath send karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function exportDocumentHandler(req, res, next) {
   try {
     const { id } = req.params;
     const { format = 'markdown' } = req.query;
-
     const exported = await documentService.exportDocument(id, format);
 
     if (!exported) {
@@ -386,7 +520,6 @@ export async function exportDocumentHandler(req, res, next) {
 
     res.setHeader('Content-Type', exported.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
-
     return res.status(200).send(exported.content);
   } catch (error) {
     next(error);
@@ -394,7 +527,15 @@ export async function exportDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to retrieve word count and reading statistics.
+ * Handles retrieving live document metrics and reading statistics.
+ *
+ * [ROMAN URDU]:
+ * Document ke word count, character count, aur reading time statistics return karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function getDocumentStatsHandler(req, res, next) {
   try {
@@ -419,7 +560,15 @@ export async function getDocumentStatsHandler(req, res, next) {
 }
 
 /**
- * Handler to move document to trash (30-day retention).
+ * Handles moving a document to the trash bin (30-day retention).
+ *
+ * [ROMAN URDU]:
+ * Document ko 30-day retention schedule ke sath trash bin mein bhejta hai (soft-delete).
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function archiveDocumentHandler(req, res, next) {
   try {
@@ -450,7 +599,15 @@ export async function archiveDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to restore an archived document from trash.
+ * Handles restoring an archived document from the trash bin.
+ *
+ * [ROMAN URDU]:
+ * Trash bin se document ko restore karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function restoreDocumentHandler(req, res, next) {
   try {
@@ -478,7 +635,15 @@ export async function restoreDocumentHandler(req, res, next) {
 }
 
 /**
- * Handler to list trash documents.
+ * Handles listing documents in the trash bin for a workspace.
+ *
+ * [ROMAN URDU]:
+ * Workspace ke trash bin mein mojood documents list karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function listTrashHandler(req, res, next) {
   try {
@@ -512,7 +677,15 @@ export async function listTrashHandler(req, res, next) {
 }
 
 /**
- * Handler to permanently delete a document.
+ * Handles permanently purging a document from the database.
+ *
+ * [ROMAN URDU]:
+ * Trash mein mojood document ko database se permanently delete karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function permanentDeleteHandler(req, res, next) {
   try {
@@ -538,7 +711,15 @@ export async function permanentDeleteHandler(req, res, next) {
 }
 
 /**
- * Handler to empty all trash for a workspace.
+ * Handles emptying all trash documents for a workspace.
+ *
+ * [ROMAN URDU]:
+ * Workspace ke tamam trash documents ko aik request mein permanently purge karta hai.
+ *
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next middleware
+ * @returns {Promise<void>}
  */
 export async function emptyTrashHandler(req, res, next) {
   try {
