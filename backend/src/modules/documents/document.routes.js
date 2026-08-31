@@ -63,7 +63,6 @@ documentRouter.put(
   requireDocumentAccess('edit'),
   controller.updateDocumentHandler
 );
-
 // PATCH /api/documents/:id/autosave - Autosave rich-text content
 documentRouter.patch(
   '/:id/autosave',

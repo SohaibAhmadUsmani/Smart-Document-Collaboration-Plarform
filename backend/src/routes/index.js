@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { authRouter } from '../modules/auth/auth.routes.js';
+import { usersRouter } from '../modules/auth/users.routes.js';
 import { documentRouter } from '../modules/documents/document.routes.js';
 import { workspaceRouter, folderRouter } from '../modules/workspaces/routes/workspaceRoutes.js';
 import { commentRouter } from '../modules/comments/routes/commentRoutes.js';
@@ -11,20 +13,9 @@ import { historyRouter } from '../modules/history-search/historyRoutes.js';
 export const apiRouter = Router();
 registerDocumentActivityListeners();
 
-console.log('DEV_FAKE_AUTH raw value seen by Node:', JSON.stringify(process.env.DEV_FAKE_AUTH));
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/users', usersRouter);
 
-// TEMPORARY, DEV-ONLY: fakes req.user until Maira's auth module actually
-// sets it. Only runs when DEV_FAKE_AUTH=true is set in your local .env —
-
-if (process.env.DEV_FAKE_AUTH === 'true') {
-  console.log('Dev fake-auth middleware is ACTIVE — all requests will get a fake user.');
-  apiRouter.use((req, res, next) => {
-    req.user = { id: process.env.DEV_FAKE_USER_ID || '000000000000000000000001' };
-    next();
-  });
-} else {
-  console.log('Dev fake-auth middleware is OFF — requests need real auth (currently none exists, so everything 401s).');
-}
 apiRouter.use('/documents', documentRouter);
 apiRouter.use('/workspaces', workspaceRouter);
 apiRouter.use('/folders', folderRouter);
