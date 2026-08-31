@@ -80,7 +80,7 @@ export function App() {
         <ErrorBoundary>
           <Routes>
             {/* Default route */}
-            <Route path="/" element={<Navigate to="/workspaces" replace />} />
+            <Route path="/" element={<Navigate to="/editor" replace />} />
 
             {/* Auth module */}
             <Route path="/signup" element={<SignUpPage />} />
