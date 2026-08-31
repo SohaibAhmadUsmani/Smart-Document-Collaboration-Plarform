@@ -1,9 +1,24 @@
-import { extractNodeText } from './astWalker.js';
+/**
+ * @file astConverters.js
+ * @description Frontend AST plain text and Markdown transformation engine for DocSync Pro.
+ * Converts ProseMirror / TipTap JSON document trees into clean markdown text or plain strings.
+ * @module frontend/src/modules/editor/utils/astConverters
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh utility file TipTap / ProseMirror document AST ko plain text aur standard Markdown
+ * format mein convert karne ke single-responsibility functions faraham karti hai.
+ * Unused imports ko khatam karke backend ke converter ke sath align kiya gaya hai.
+ */
 
 /**
- * Recursively extracts plain text from a TipTap/ProseMirror AST node or document.
+ * Recursively extracts plain text from a TipTap / ProseMirror AST node or document tree.
+ *
+ * [ROMAN URDU]:
+ * AST node ko recursively traverse karke sirf textual data return karta hai.
+ *
  * @param {Object} node - AST Node or root document
- * @returns {string}
+ * @returns {string} Extracted plain text string
  */
 export function extractPlainTextFromAst(node) {
   if (!node) return '';
@@ -21,10 +36,16 @@ export function extractPlainTextFromAst(node) {
 
 /**
  * Converts a structured document AST JSON tree into clean Markdown text.
+ * Handles headings, paragraphs, blockquotes, callouts, code blocks, lists,
+ * tables, horizontal rules, attachments, and inline mark styling (bold, italic, strike, code, link).
  *
- * @param {Object} documentAst
- * @param {string} [documentTitle='']
- * @returns {string}
+ * [ROMAN URDU]:
+ * TipTap AST JSON tree ko clean Markdown format mein convert karta hai. Table rows,
+ * callout alerts, aur code blocks ko proper markdown syntax mein transform karta hai.
+ *
+ * @param {Object} documentAst - TipTap / ProseMirror AST JSON representation
+ * @param {string} [documentTitle=''] - Optional title to prepend as H1 heading
+ * @returns {string} Formatted Markdown text
  */
 export function astToMarkdown(documentAst, documentTitle = '') {
   const lines = [];
@@ -35,6 +56,11 @@ export function astToMarkdown(documentAst, documentTitle = '') {
 
   if (!documentAst || !Array.isArray(documentAst.content)) {
     return lines.join('\n');
+  }
+
+  function renderChildren(node) {
+    if (!node || !Array.isArray(node.content)) return '';
+    return node.content.map(renderNode).join('');
   }
 
   function renderNode(node) {
@@ -121,11 +147,6 @@ export function astToMarkdown(documentAst, documentTitle = '') {
         return renderChildren(node);
       }
     }
-  }
-
-  function renderChildren(node) {
-    if (!node || !Array.isArray(node.content)) return '';
-    return node.content.map(renderNode).join('');
   }
 
   for (const block of documentAst.content) {

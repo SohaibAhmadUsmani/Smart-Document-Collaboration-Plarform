@@ -3,8 +3,8 @@
 @variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================================
-
    DOCSYNC PRO: DESIGN SYSTEM SCALES, KEYFRAMES & ELEVATION TOKENS
+   [ROMAN URDU]: Animation keyframes, elevation shadows aur visual effects ke tokens.
    ========================================================================== */
 
 @keyframes live-patina-pulse {
@@ -77,7 +77,34 @@
 .typing-dot:nth-child(3) { animation: typing-dot-bounce 1.2s infinite 0.36s; }
 
 /* ==========================================================================
+   UTILITY CLASSES & SCROLLBAR HIDING
+   [ROMAN URDU]: Responsive scrollbars ko hide karne ke liye utility class.
+   ========================================================================== */
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Elevated Multi-Layer Paper Shadow Token [Issue #19] */
+.shadow-paper-elevated {
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Dark mode shadow token */
+.dark .shadow-paper-elevated {
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================================================
    100x TYPOGRAPHY & TIPTAP SURFACE STYLING
+   [ROMAN URDU]: Document editor canvas typography aur elements styling.
    ========================================================================== */
 
 .tiptap {
@@ -86,6 +113,10 @@
   font-size: 16px;
   line-height: 1.75;
   color: #1e293b;
+}
+
+.dark .tiptap {
+  color: #f1f5f9;
 }
 
 /* Document Title (H1) */
@@ -97,6 +128,10 @@
   line-height: 1.2 !important;
   margin-top: 1.5rem !important;
   margin-bottom: 1.5rem !important;
+}
+
+.dark .tiptap h1 {
+  color: #f8fafc !important;
 }
 
 /* Section Headings (H2) */
@@ -112,6 +147,11 @@
   border-bottom: 1px solid #f1f5f9 !important;
 }
 
+.dark .tiptap h2 {
+  color: #f8fafc !important;
+  border-bottom-color: #334155 !important;
+}
+
 /* Sub-Headings (H3) */
 .tiptap h3 {
   font-size: 18px !important;
@@ -123,12 +163,20 @@
   margin-bottom: 0.5rem !important;
 }
 
+.dark .tiptap h3 {
+  color: #e2e8f0 !important;
+}
+
 /* Body Paragraphs */
 .tiptap p {
   font-size: 16px !important;
   line-height: 1.75 !important;
   color: #1e293b !important;
   margin-bottom: 1.25rem !important;
+}
+
+.dark .tiptap p {
+  color: #cbd5e1 !important;
 }
 
 /* Lists */
@@ -152,6 +200,10 @@
   color: #1e293b;
 }
 
+.dark .tiptap li {
+  color: #cbd5e1;
+}
+
 /* Callout Box / Blockquote */
 .tiptap blockquote,
 .tiptap [data-callout],
@@ -167,6 +219,14 @@
   font-style: italic;
   color: #1e293b;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
+}
+
+.dark .tiptap blockquote,
+.dark .tiptap [data-callout],
+.dark .tiptap aside[data-callout-type] {
+  background-color: #1e293b;
+  border-left-color: #3b82f6;
+  color: #e2e8f0;
 }
 
 /* Interactive Task Checklist */
@@ -186,6 +246,10 @@
   color: #1e293b;
 }
 
+.dark .tiptap ul[data-type="taskList"] li {
+  color: #cbd5e1;
+}
+
 .tiptap ul[data-type="taskList"] li input[type="checkbox"] {
   width: 18px;
   height: 18px;
@@ -203,6 +267,10 @@
   transition: color 0.2s ease;
 }
 
+.dark .tiptap ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  color: #64748b;
+}
+
 /* Table Styles */
 .tiptap table {
   border-collapse: collapse;
@@ -212,6 +280,10 @@
   overflow: hidden;
   border-radius: 0.5rem;
   border: 1px solid #e2e8f0;
+}
+
+.dark .tiptap table {
+  border-color: #334155;
 }
 
 .tiptap table td,
@@ -225,11 +297,21 @@
   font-size: 15px;
 }
 
+.dark .tiptap table td,
+.dark .tiptap table th {
+  border-color: #334155;
+}
+
 .tiptap table th {
   font-weight: 600;
   text-align: left;
   background-color: #f8fafc;
   color: #0f172a;
+}
+
+.dark .tiptap table th {
+  background-color: #1e293b;
+  color: #f8fafc;
 }
 
 /* Code Block */
@@ -252,6 +334,11 @@
   color: #0f172a;
   padding: 0.2em 0.4em;
   border-radius: 0.35rem;
+}
+
+.dark .tiptap code {
+  background-color: #334155;
+  color: #f1f5f9;
 }
 
 .tiptap pre code {
@@ -291,4 +378,11 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }

@@ -1,125 +1,131 @@
-import React from 'react';
-import {
-  Bold,
-  Italic,
-  Underline as UnderlineIcon,
-  Strikethrough,
-  Code,
-  Link,
-  MessageSquarePlus,
-} from 'lucide-react';
+/**
+ * @file BubbleFloatingMenu.jsx
+ * @description Floating bubble menu component that appears when selecting text ranges in TipTap.
+ * Provides quick formatting actions (Bold, Italic, Strike, Code, Link, Comment).
+ * @module frontend/src/modules/editor/components/BubbleFloatingMenu
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Jab user mouse se text select karta hai toh yeh floating bubble menu appear hota hai.
+ * Quick bold, italic, code, aur selection par naya comment anchor attach karne ka button provide karta hai.
+ */
 
+import React, { useState, useEffect } from 'react';
+import { Bold, Italic, Strikethrough, Code, Link2, MessageSquarePlus } from 'lucide-react';
+
+/**
+ * BubbleFloatingMenu Component.
+ *
+ * [ROMAN URDU]:
+ * Text selection par appear hone wala floating formatting menu.
+ *
+ * @param {Object} props
+ * @param {Object} props.editor - TipTap editor instance
+ * @param {Function} [props.onAddComment] - Callback to attach a comment to active selection
+ * @returns {React.JSX.Element|null}
+ */
 export function BubbleFloatingMenu({ editor, onAddComment }) {
-  if (!editor) return null;
+  const [isVisible, setIsVisible] = useState(false);
 
-  const isTextSelected = !editor.state.selection.empty;
-  if (!isTextSelected) return null;
+  useEffect(() => {
+    if (!editor) return;
 
-  const handleToggleBold = () => editor.chain().focus().toggleBold().run();
-  const handleToggleItalic = () => editor.chain().focus().toggleItalic().run();
-  const handleToggleUnderline = () => editor.chain().focus().toggleUnderline().run();
-  const handleToggleStrike = () => editor.chain().focus().toggleStrike().run();
-  const handleToggleCode = () => editor.chain().focus().toggleCode().run();
+    const updateVisibility = () => {
+      const { from, to } = editor.state.selection;
+      const isTextSelected = from !== to;
+      setIsVisible(isTextSelected && editor.isFocused);
+    };
 
-  const handleSetLink = () => {
-    const previousUrl = editor.getAttributes('link').href;
-    const url = window.prompt('Enter link URL:', previousUrl || 'https://');
-    if (url === null) return;
-    if (url === '') {
-      editor.chain().focus().unsetLink().run();
-      return;
-    }
-    editor.chain().focus().setLink({ href: url }).run();
-  };
+    editor.on('selectionUpdate', updateVisibility);
+    editor.on('blur', () => setIsVisible(false));
 
-  const handleComment = () => {
-    if (onAddComment) {
-      onAddComment();
-    } else {
-      const threadId = `cmt_${Date.now()}`;
-      editor.chain().focus().setMark('commentMark', { commentThreadId: threadId, isActive: true }).run();
-    }
-  };
+    return () => {
+      editor.off('selectionUpdate', updateVisibility);
+    };
+  }, [editor]);
+
+  if (!isVisible || !editor) return null;
+
+  const btnClass = (isActive) =>
+    `p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs ${
+      isActive
+        ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 font-bold'
+        : 'text-slate-700 dark:text-slate-200'
+    }`;
 
   return (
-    <div className="flex items-center gap-0.5 bg-slate-900/95 dark:bg-slate-950/95 text-white backdrop-blur-md px-1.5 py-1 rounded-xl shadow-2xl border border-slate-700 animate-in fade-in zoom-in-95 duration-150">
+    <div
+      role="toolbar"
+      aria-label="Floating text selection menu"
+      className="flex items-center gap-0.5 p-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-40 animate-in fade-in zoom-in-95 duration-100"
+    >
       <button
         type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        className={btnClass(editor.isActive('bold'))}
         title="Bold (Ctrl+B)"
-        onClick={handleToggleBold}
-        className={`p-1.5 rounded-md text-xs hover:bg-slate-800 transition-colors ${
-          editor.isActive('bold') ? 'bg-blue-600 text-white font-bold' : 'text-slate-300'
-        }`}
       >
         <Bold className="w-3.5 h-3.5" />
       </button>
 
       <button
         type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        className={btnClass(editor.isActive('italic'))}
         title="Italic (Ctrl+I)"
-        onClick={handleToggleItalic}
-        className={`p-1.5 rounded-md text-xs hover:bg-slate-800 transition-colors ${
-          editor.isActive('italic') ? 'bg-blue-600 text-white' : 'text-slate-300'
-        }`}
       >
         <Italic className="w-3.5 h-3.5" />
       </button>
 
       <button
         type="button"
-        title="Underline (Ctrl+U)"
-        onClick={handleToggleUnderline}
-        className={`p-1.5 rounded-md text-xs hover:bg-slate-800 transition-colors ${
-          editor.isActive('underline') ? 'bg-blue-600 text-white' : 'text-slate-300'
-        }`}
-      >
-        <UnderlineIcon className="w-3.5 h-3.5" />
-      </button>
-
-      <button
-        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        className={btnClass(editor.isActive('strike'))}
         title="Strikethrough"
-        onClick={handleToggleStrike}
-        className={`p-1.5 rounded-md text-xs hover:bg-slate-800 transition-colors ${
-          editor.isActive('strike') ? 'bg-blue-600 text-white' : 'text-slate-300'
-        }`}
       >
         <Strikethrough className="w-3.5 h-3.5" />
       </button>
 
       <button
         type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => editor.chain().focus().toggleCode().run()}
+        className={btnClass(editor.isActive('code'))}
         title="Inline Code"
-        onClick={handleToggleCode}
-        className={`p-1.5 rounded-md text-xs hover:bg-slate-800 transition-colors ${
-          editor.isActive('code') ? 'bg-blue-600 text-white' : 'text-slate-300'
-        }`}
       >
         <Code className="w-3.5 h-3.5" />
       </button>
 
-      <div className="w-[1px] h-4 bg-slate-700 mx-1" />
-
       <button
         type="button"
-        title="Insert Link"
-        onClick={handleSetLink}
-        className={`p-1.5 rounded-md text-xs hover:bg-slate-800 transition-colors ${
-          editor.isActive('link') ? 'bg-blue-600 text-white' : 'text-slate-300'
-        }`}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          const url = window.prompt('Enter Link URL:');
+          if (url) editor.chain().focus().setLink({ href: url }).run();
+        }}
+        className={btnClass(editor.isActive('link'))}
+        title="Link"
       >
-        <Link className="w-3.5 h-3.5" />
+        <Link2 className="w-3.5 h-3.5" />
       </button>
 
+      <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
       <button
         type="button"
-        title="Add Comment (Ctrl+Alt+M)"
-        onClick={handleComment}
-        className="flex items-center gap-1 px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold rounded-md text-xs transition-colors shadow-xs ml-1"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => onAddComment && onAddComment()}
+        className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-xs flex items-center gap-1 font-semibold"
+        title="Comment on Selection"
       >
         <MessageSquarePlus className="w-3.5 h-3.5" />
-        <span>Comment</span>
+        <span className="text-[10px]">Comment</span>
       </button>
     </div>
   );
 }
+
+export default BubbleFloatingMenu;

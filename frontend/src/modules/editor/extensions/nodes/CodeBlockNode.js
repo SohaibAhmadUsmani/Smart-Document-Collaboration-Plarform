@@ -1,5 +1,22 @@
+/**
+ * @file CodeBlockNode.js
+ * @description ProseMirror block node extension for preformatted code blocks with syntax highlighting language tags.
+ * @module frontend/src/modules/editor/extensions/nodes/CodeBlockNode
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh custom ProseMirror block node hai jo `<pre><code class="language-..."/>` structure
+ * render karta hai. Multi-line code snippets aur syntax highlighting ke liye use hota hai.
+ */
+
 import { Node, mergeAttributes } from '@tiptap/core';
 
+/**
+ * Custom Preformatted Code Block Node.
+ *
+ * [ROMAN URDU]:
+ * TipTap Node schema jo language (jaise javascript, python) aur unique blockId ko track karta hai.
+ */
 export const CodeBlockNode = Node.create({
   name: 'codeBlock',
   group: 'block',

@@ -1,11 +1,26 @@
 /**
- * Motion, Spring, and Easing Tokens for DocSync Pro (Impeccable + UI-UX Pro Max)
+ * @file motionVariants.js
+ * @description Framer Motion transition tokens, spring physics curves, and animation variants.
+ * Powers micro-interactions for popovers, slash command menus, comment cards, and toolbars.
+ * @module frontend/src/modules/editor/utils/motionVariants
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh file UI animations ke liye Framer Motion variants aur spring physics configuration
+ * define karti hai. Popovers, Slash Command menu, comment cards, aur toolbars ko smooth
+ * 60fps micro-interactions faraham karti hai.
  */
 
 export const EASE_SNAPPY = [0.16, 1, 0.3, 1];
 export const EASE_ENTRANCE = [0.05, 0.7, 0.1, 1];
 export const EASE_EXIT = [0.3, 0, 0.8, 0.15];
 
+/**
+ * Spring physics parameters tailored for interactive UI widgets.
+ *
+ * [ROMAN URDU]:
+ * Mukhtalif UI components ke liye customized spring stiffness, damping, aur mass tokens.
+ */
 export const springTokens = {
   snappy: { type: 'spring', stiffness: 450, damping: 30, mass: 0.8 },
   popover: { type: 'spring', stiffness: 380, damping: 26, mass: 0.9 },

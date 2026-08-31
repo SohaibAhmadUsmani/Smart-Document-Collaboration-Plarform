@@ -1,7 +1,24 @@
 /**
- * Document Starter Template Presets for DocSync Pro
+ * @file documentTemplates.js
+ * @description Starter document templates and schemas for DocSync Pro.
+ * Provides pre-formatted ProseMirror AST blueprints for meeting notes, PRDs, and RFC architectures.
+ * @module backend/src/modules/documents/documentTemplates
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh file DocSync Pro ke pre-built starter templates (Meeting Notes, Product Requirement Document PRD,
+ * aur Technical RFC) define karti hai. Naya document create karte waqt agar template choose kiya jaye
+ * toh yeh ready-made ProseMirror AST structure provide karti hai.
  */
 
+import { generateUuid } from './document.utils.js';
+
+/**
+ * Standard preset template configurations.
+ *
+ * [ROMAN URDU]:
+ * Preset templates ka structured collection jisme headings, tables, callouts, aur task lists shamil hain.
+ */
 export const DOCUMENT_TEMPLATES = {
   meeting_notes: {
     id: 'meeting_notes',
@@ -214,7 +231,7 @@ export const DOCUMENT_TEMPLATES = {
           content: [
             {
               type: 'text',
-              text: 'export async function autosaveDocumentContent(documentId, payload, userId) {\n  const updated = await DocumentModel.findOneAndUpdate(\n    { _id: documentId, version: payload.baseVersion },\n    { $set: { content: payload.content }, $inc: { version: 1 } },\n    { new: true }\n  );\n  return updated;\n}',
+              text: 'export async function autosaveDocumentContent(documentId, payload, userId) {\n  const updated = await DocumentModel.findOneAndUpdate(\n    { _id: documentId, version: payload.baseVersion, isArchived: false },\n    { $set: { content: payload.content }, $inc: { version: 1 } },\n    { new: true }\n  );\n  return updated;\n}',
             },
           ],
         },
@@ -223,6 +240,50 @@ export const DOCUMENT_TEMPLATES = {
   },
 };
 
+/**
+ * Recursively rehydrates a template node tree with dynamic, fresh blockIds.
+ * [Issue #43]: Re-generates dynamic unique blockIds (block_${generateUuid()}) on template hydration.
+ *
+ * [ROMAN URDU]: Template tree ke har node ko naya cryptographically unique blockId deta hai taake concurrent documents mein conflict na ho.
+ *
+ * @param {Object} node - AST node
+ * @returns {Object} Hydrated AST node with fresh blockIds
+ */
+function rehydrateTemplateBlockIds(node) {
+  if (!node || typeof node !== 'object') return node;
+
+  const clone = { ...node };
+
+  if (clone.type && clone.type !== 'text') {
+    clone.attrs = {
+      ...(clone.attrs || {}),
+      blockId: `block_${generateUuid()}`,
+    };
+  }
+
+  if (Array.isArray(clone.content)) {
+    clone.content = clone.content.map(rehydrateTemplateBlockIds);
+  }
+
+  return clone;
+}
+
+/**
+ * Retrieves a document template preset by its unique ID with fresh, dynamic blockIds.
+ * [Issue #43]: Regenerates unique blockIds on every hydration to prevent block collision.
+ *
+ * [ROMAN URDU]:
+ * Di gayi template ID (`meeting_notes`, `prd`, `technical_rfc`) ke mutabiq template object return karta hai,
+ * aur uske tamam blocks ke liye fresh dynamic blockIds assign karta hai.
+ *
+ * @param {string} templateId - Template identifier
+ * @returns {Object|null} Hydrated template blueprint object or null
+ */
 export function getTemplateById(templateId) {
-  return DOCUMENT_TEMPLATES[templateId] || null;
+  const template = DOCUMENT_TEMPLATES[templateId];
+  if (!template) return null;
+
+  const hydrated = JSON.parse(JSON.stringify(template));
+  hydrated.content = rehydrateTemplateBlockIds(hydrated.content);
+  return hydrated;
 }

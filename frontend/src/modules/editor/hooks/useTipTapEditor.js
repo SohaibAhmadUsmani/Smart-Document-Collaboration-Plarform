@@ -1,12 +1,31 @@
+/**
+ * @file useTipTapEditor.js
+ * @description Headless TipTap editor integration hook for DocSync Pro.
+ * Mounts editor instance onto a DOM element ref, synchronizes reactive state,
+ * and exposes rich formatting commands with active mark tracking.
+ * @module frontend/src/modules/editor/hooks/useTipTapEditor
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh hook TipTap ProseMirror editor instance ko initialize aur manage karta hai.
+ * DOM element par editor mount karta hai, real-time typing par content sync karta hai,
+ * active formatting marks track karta hai, aur formatting commands (bold, lists, tables, etc.)
+ * execute karta hai.
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Editor } from '@tiptap/core';
 import { getEditorExtensions } from '../extensions/schema.js';
 import { useDocumentEditor } from './useDocumentEditor.js';
 
 /**
- * Headless TipTap editor integration hook for DocSync Pro.
- * Mounts editor instance onto a DOM element ref, synchronizes reactive state,
- * and exposes rich formatting commands with active mark tracking.
+ * Headless TipTap editor integration hook.
+ *
+ * [ROMAN URDU]:
+ * TipTap editor instance, mounting ref, ready state flag, aur command dispatcher return karta hai.
+ *
+ * @param {Object} [options={}] - Configuration options (initialContent, etc.)
+ * @returns {{ editorRef: React.RefObject, editor: Object|null, editorInstance: Object|null, isReady: boolean, executeCommand: Function }}
  */
 export function useTipTapEditor(options = {}) {
   const { state, updateContent, setActiveMarks, setActiveCommentThread } = useDocumentEditor();
@@ -179,11 +198,12 @@ export function useTipTapEditor(options = {}) {
         case 'table':
           chain.insertTable({ rows: payload.rows || 3, cols: payload.cols || 3, withHeaderRow: true }).run();
           break;
-        case 'insertComment':
+        case 'insertComment': {
           const threadId = `cmt_anchor_${Date.now()}`;
           chain.setMark('commentMark', { commentThreadId: threadId, isActive: true }).run();
           if (setActiveCommentThread) setActiveCommentThread(threadId);
           break;
+        }
         case 'undo':
           chain.undo().run();
           break;
