@@ -18,6 +18,29 @@ import { Editor } from '@tiptap/core';
 import { getEditorExtensions } from '../extensions/schema.js';
 import { useDocumentEditor } from './useDocumentEditor.js';
 
+function parseDocContent(content) {
+  if (!content) return { type: 'doc', content: [] };
+  let parsed = content;
+  while (typeof parsed === 'string') {
+    const trimmed = parsed.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('"')) {
+      try {
+        const next = JSON.parse(trimmed);
+        if (next === parsed) break;
+        parsed = next;
+      } catch {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  if (typeof parsed === 'object' && parsed !== null) {
+    return parsed;
+  }
+  return content;
+}
+
 /**
  * Headless TipTap editor integration hook.
  *
@@ -37,7 +60,8 @@ export function useTipTapEditor(options = {}) {
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const initialDoc = options.initialContent || state.content || { type: 'doc', content: [] };
+    const rawDoc = options.initialContent || state.content || { type: 'doc', content: [] };
+    const initialDoc = parseDocContent(rawDoc);
 
     const editor = new Editor({
       element: editorRef.current,
@@ -108,10 +132,11 @@ export function useTipTapEditor(options = {}) {
   // 2. Reactive Content Synchronization (Handles Async Data & Template Loading)
   useEffect(() => {
     if (editorInstance && state.content) {
+      const parsedContent = parseDocContent(state.content);
       const currentJSON = editorInstance.getJSON();
-      const isDifferent = JSON.stringify(currentJSON) !== JSON.stringify(state.content);
-      if (isDifferent && !editorInstance.isFocused) {
-        editorInstance.commands.setContent(state.content, false);
+      const isDifferent = JSON.stringify(currentJSON) !== JSON.stringify(parsedContent);
+      if (isDifferent) {
+        editorInstance.commands.setContent(parsedContent, false);
       }
     }
   }, [state.content, editorInstance]);

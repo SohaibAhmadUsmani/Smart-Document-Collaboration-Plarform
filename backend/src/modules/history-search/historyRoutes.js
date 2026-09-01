@@ -12,6 +12,7 @@ import {
   handleCreateSnapshot,
   handleGetVersion,
   handleRestoreVersion,
+  handleDeleteVersion,
   handleGetDiff,
   handleSearch
 } from './historyController.js';
@@ -25,8 +26,9 @@ historyRouter.use(requireAuth);
 historyRouter.get('/documents/:documentId/history', handleGetHistory);
 historyRouter.post('/documents/:documentId/history', handleCreateSnapshot);
 
-// Single version & diff routes
+// Single version, diff & delete routes
 historyRouter.get('/versions/:versionId', handleGetVersion);
+historyRouter.delete('/versions/:versionId', handleDeleteVersion);
 historyRouter.get('/diff', handleGetDiff);
 
 // Version restore route
