@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAuth } from '../../../middleware/auth.js';
 import { workspaceController } from '../controllers/workspaceController.js';
 import { requireWorkspaceRole, requireAuthenticated } from '../middleware/requireWorkspaceRole.js';
 import { memberRouter } from './memberRoutes.js';
@@ -7,6 +8,11 @@ import { sharingRouter } from './sharingRoutes.js';
 import { workspaceFolderRouter, folderRouter } from './folderRoutes.js';
 
 export const workspaceRouter = Router();
+
+// Populates req.user from the JWT before any of our own permission checks
+// run. Every route below (and every sub-router mounted on this one) depends
+// on req.user already being set.
+workspaceRouter.use(requireAuth);
 
 workspaceRouter.post('/', requireAuthenticated, workspaceController.create);
 workspaceRouter.get('/', requireAuthenticated, workspaceController.listMine);
