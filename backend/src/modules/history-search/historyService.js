@@ -34,9 +34,22 @@ export async function getHistoryByDocumentId(documentId) {
     throw new Error('documentId is required');
   }
 
-  const versions = inMemoryVersionStore
+  let versions = inMemoryVersionStore
     .filter(v => v.documentId === String(documentId))
     .sort((a, b) => b.versionNumber - a.versionNumber); // Latest first
+
+  if (versions.length === 0) {
+    createVersionRecord({
+      documentId: String(documentId),
+      title: 'Untitled Document',
+      content: 'Initial document snapshot',
+      createdBy: 'Aiman (System)',
+      changeSummary: 'Auto-created initial document version'
+    });
+    versions = inMemoryVersionStore
+      .filter(v => v.documentId === String(documentId))
+      .sort((a, b) => b.versionNumber - a.versionNumber);
+  }
 
   return versions;
 }

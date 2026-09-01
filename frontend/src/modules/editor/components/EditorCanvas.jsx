@@ -16,7 +16,12 @@ import { BubbleFloatingMenu } from './BubbleFloatingMenu.jsx';
 import { TableCellMenu } from './TableCellMenu.jsx';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal.jsx';
 import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
-
+import {
+  VersionHistoryDrawer,
+  VersionPreviewModal,
+  GlobalSearchBar,
+  restoreVersion,
+} from '../../history-search/index.js';
 import { CollaborationProvider } from '../../collaboration/context/CollaborationContext.jsx';
 import { useDocumentCollaboration } from '../../collaboration/hooks/useDocumentCollaboration.js';
 import { ActiveUsers } from '../../collaboration/components/ActiveUsers.jsx';
@@ -77,6 +82,11 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
+
+  // History & Search UI State (Owner: Aiman)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Comment mark hydration state
   const hydratedCommentIdsRef = useRef(new Set());
@@ -399,7 +409,12 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       className="flex flex-col min-h-screen bg-slate-100/75 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased"
     >
       {/* 1. Top Global Navigation Header (Hidden in Zen Mode) */}
-      {!isZenMode && <TopGlobalHeader onNavigateToDocument={navigateToDocument} />}
+      {!isZenMode && (
+        <TopGlobalHeader
+          onSearchClick={() => setIsSearchOpen(true)}
+          onNavigateToDocument={navigateToDocument}
+        />
+      )}
 
       {/* 2. Document Sub-Header & Breadcrumb Bar */}
       {!isZenMode && (
@@ -411,6 +426,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
           onTitleChange={(newTitle) => updateTitle(newTitle)}
           onShareClick={() => alert('Workspace sharing modal opened: manage access and link permissions.')}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          onOpenHistory={() => setIsHistoryOpen(true)}
         />
       )}
 
@@ -504,7 +520,63 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
         onClose={() => setIsShortcutsOpen(false)}
       />
 
-      {/* 6. Version Conflict Resolution Modal (HTTP 409 OCC) */}
+      {/* 6. Version History Drawer Overlay (Owner: Aiman) */}
+      <VersionHistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        documentId={state.documentId || PRIMARY_LIVE_SEED_ID}
+        currentTitle={state.title}
+        currentContent={state.content}
+        onVersionRestored={(restoredData) => {
+          if (restoredData) {
+            setDocument({
+              ...state,
+              title: restoredData.title || state.title,
+              content: restoredData.content || state.content,
+            });
+          }
+        }}
+        onSelectVersionPreview={(ver) => setPreviewVersion(ver)}
+      />
+
+      {/* 7. Version Preview Modal Overlay (Owner: Aiman) */}
+      {previewVersion && (
+        <VersionPreviewModal
+          version={previewVersion}
+          onClose={() => setPreviewVersion(null)}
+          onRestore={async (ver) => {
+            try {
+              const res = await restoreVersion(state.documentId || PRIMARY_LIVE_SEED_ID, ver.id);
+              if (res?.data) {
+                setDocument({
+                  ...state,
+                  title: res.data.title || state.title,
+                  content: res.data.content || state.content,
+                });
+              }
+            } catch (err) {
+              alert(`Restore failed: ${err.message}`);
+            }
+          }}
+        />
+      )}
+
+      {/* 8. Global Search Overlay (Owner: Aiman) */}
+      <GlobalSearchBar
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onSelectResult={(result) => {
+          if (result?.documentId) {
+            setDocument({
+              ...state,
+              documentId: result.documentId,
+              title: result.title || state.title,
+            });
+          }
+        }}
+      />
+
+      {/* 9. Version Conflict Resolution Modal (HTTP 409 OCC) */}
       <ConflictResolutionModal
         isOpen={Boolean(state.conflictData)}
         localContent={state.conflictData?.localContent}
