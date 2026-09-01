@@ -13,6 +13,10 @@ export const COLLABORATION_EVENTS = {
   LEAVE_DOCUMENT: 'document:leave',
   /** Client ↔ Server: document content changed. Payload: { documentId, content, plainText } */
   CONTENT_CHANGE: 'document:change',
+  /** Client ↔ Server: cursor position changed. Payload: { documentId, from, to } */
+  CURSOR_CHANGE: 'document:cursor',
+  /** Client ↔ Server: selection (non-collapsed) changed. Payload: { documentId, from, to } */
+  SELECTION_CHANGE: 'document:selection',
   /** Server → Client: active users in the current document room. */
   PRESENCE_UPDATE: 'collaboration:presence',
 };

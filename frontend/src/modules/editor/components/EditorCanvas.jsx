@@ -18,9 +18,9 @@ import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
 
 import { CollaborationProvider } from '../../collaboration/context/CollaborationContext.jsx';
 import { useDocumentCollaboration } from '../../collaboration/hooks/useDocumentCollaboration.js';
+import { usePresencePosition } from '../../collaboration/hooks/usePresencePosition.js';
+import { getCurrentUserId } from '../../collaboration/services/socketClient.js';
 import { ActiveUsers } from '../../collaboration/components/ActiveUsers.jsx';
-import { apiGetDocument, apiAddAttachment } from '../services/documentApi.js';
-
 import { ConflictResolutionModal } from './ConflictResolutionModal.jsx';
 import { apiGetDocument, apiAddAttachment, apiCreateDocument } from '../services/documentApi.js';
 import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
@@ -64,6 +64,14 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     editor: editorInstance,
     content: state.content,
     plainText: state.plainText,
+  });
+
+  // Real-time cursor & selection presence (remote carets + highlighted ranges).
+  const currentUserId = getCurrentUserId();
+  usePresencePosition({
+    documentId: collaborationDocId,
+    editor: editorInstance,
+    userId: currentUserId,
   });
 
   // Comment anchor integration

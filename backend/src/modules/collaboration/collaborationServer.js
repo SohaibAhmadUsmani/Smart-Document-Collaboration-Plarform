@@ -141,6 +141,41 @@ function registerSocketHandlers(socket) {
     });
   });
 
+  // Broadcast a cursor position change to every OTHER member of the document
+  // room. The sender is excluded (socket.to) so it never receives its own
+  // cursor back, mirroring the content-change exclusion.
+  socket.on(COLLABORATION_EVENTS.CURSOR_CHANGE, (payload) => {
+    const documentId = String(payload?.documentId ?? '');
+    if (!documentId || !socket.data.documentIds.has(documentId)) return;
+
+    const from = Number.isInteger(payload?.from) ? payload.from : null;
+    const to = Number.isInteger(payload?.to) ? payload.to : null;
+    socket.to(documentRoomName(documentId)).emit(COLLABORATION_EVENTS.CURSOR_CHANGE, {
+      documentId,
+      userId: user.id,
+      name: user.name || 'User',
+      from,
+      to,
+    });
+  });
+
+  // Broadcast a selection (non-collapsed range) change to every OTHER member of
+  // the document room. Sender-excluded, same as cursor/content broadcasts.
+  socket.on(COLLABORATION_EVENTS.SELECTION_CHANGE, (payload) => {
+    const documentId = String(payload?.documentId ?? '');
+    if (!documentId || !socket.data.documentIds.has(documentId)) return;
+
+    const from = Number.isInteger(payload?.from) ? payload.from : null;
+    const to = Number.isInteger(payload?.to) ? payload.to : null;
+    socket.to(documentRoomName(documentId)).emit(COLLABORATION_EVENTS.SELECTION_CHANGE, {
+      documentId,
+      userId: user.id,
+      name: user.name || 'User',
+      from,
+      to,
+    });
+  });
+
   // On disconnect, clean up presence for every document this socket had joined.
   socket.on('disconnect', (reason) => {
     console.log(`[Collaboration]: Client disconnected — socket ${socket.id} (${reason})`);
