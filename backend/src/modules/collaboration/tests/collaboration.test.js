@@ -28,6 +28,8 @@ test('COLLABORATION_EVENTS use the expected names', () => {
   assert.equal(COLLABORATION_EVENTS.JOIN_DOCUMENT, 'document:join');
   assert.equal(COLLABORATION_EVENTS.LEAVE_DOCUMENT, 'document:leave');
   assert.equal(COLLABORATION_EVENTS.CONTENT_CHANGE, 'document:change');
+  assert.equal(COLLABORATION_EVENTS.CURSOR_CHANGE, 'document:cursor');
+  assert.equal(COLLABORATION_EVENTS.SELECTION_CHANGE, 'document:selection');
   assert.equal(COLLABORATION_EVENTS.PRESENCE_UPDATE, 'collaboration:presence');
 });
 
@@ -187,6 +189,109 @@ test('socket.io: presence reports active users and drops members on disconnect',
     assert.equal(pd.activeUsers.length, 1);
 
     assert.equal(getIO(), io, 'getIO returns the active server instance');
+  } finally {
+    socketA.disconnect();
+    socketB.disconnect();
+    await shutdown(io, httpServer);
+  }
+});
+
+test('socket.io: cursor change is broadcast to other members but not the sender', async () => {
+  const { io, httpServer, port } = await startCollabServer();
+  const socketA = connectClient(port);
+  const socketB = connectClient(port);
+
+  try {
+    await Promise.all([waitForEvent(socketA, 'connect'), waitForEvent(socketB, 'connect')]);
+
+    const docId = 'room-cursor-test';
+    await new Promise((resolve) => {
+      socketA.emit(COLLABORATION_EVENTS.JOIN_DOCUMENT, { documentId: docId }, resolve);
+    });
+    await new Promise((resolve) => {
+      socketB.emit(COLLABORATION_EVENTS.JOIN_DOCUMENT, { documentId: docId }, resolve);
+    });
+
+    const receivedByB = waitForEvent(socketB, COLLABORATION_EVENTS.CURSOR_CHANGE);
+    let aSelfCursor = false;
+    const selfProbe = () => { aSelfCursor = true; };
+    socketA.on(COLLABORATION_EVENTS.CURSOR_CHANGE, selfProbe);
+
+    socketA.emit(COLLABORATION_EVENTS.CURSOR_CHANGE, { documentId: docId, from: 3, to: 3 });
+
+    const payload = await receivedByB;
+    assert.equal(payload.documentId, docId);
+    assert.equal(payload.from, 3);
+    assert.equal(payload.to, 3);
+    assert.ok(payload.userId);
+
+    await new Promise((r) => setTimeout(r, 150));
+    socketA.off(COLLABORATION_EVENTS.CURSOR_CHANGE, selfProbe);
+    assert.equal(aSelfCursor, false, 'sender must not receive its own cursor update');
+  } finally {
+    socketA.disconnect();
+    socketB.disconnect();
+    await shutdown(io, httpServer);
+  }
+});
+
+test('socket.io: selection change is broadcast to other members but not the sender', async () => {
+  const { io, httpServer, port } = await startCollabServer();
+  const socketA = connectClient(port);
+  const socketB = connectClient(port);
+
+  try {
+    await Promise.all([waitForEvent(socketA, 'connect'), waitForEvent(socketB, 'connect')]);
+
+    const docId = 'room-selection-test';
+    await new Promise((resolve) => {
+      socketA.emit(COLLABORATION_EVENTS.JOIN_DOCUMENT, { documentId: docId }, resolve);
+    });
+    await new Promise((resolve) => {
+      socketB.emit(COLLABORATION_EVENTS.JOIN_DOCUMENT, { documentId: docId }, resolve);
+    });
+
+    const receivedByB = waitForEvent(socketB, COLLABORATION_EVENTS.SELECTION_CHANGE);
+    socketA.emit(COLLABORATION_EVENTS.SELECTION_CHANGE, { documentId: docId, from: 2, to: 7 });
+
+    const payload = await receivedByB;
+    assert.equal(payload.documentId, docId);
+    assert.equal(payload.from, 2);
+    assert.equal(payload.to, 7);
+  } finally {
+    socketA.disconnect();
+    socketB.disconnect();
+    await shutdown(io, httpServer);
+  }
+});
+
+test('socket.io: cursor/selection never leaves the document room', async () => {
+  const { io, httpServer, port } = await startCollabServer();
+  const socketA = connectClient(port);
+  const socketB = connectClient(port);
+
+  try {
+    await Promise.all([waitForEvent(socketA, 'connect'), waitForEvent(socketB, 'connect')]);
+
+    socketA.emit(COLLABORATION_EVENTS.JOIN_DOCUMENT, { documentId: 'cursor-doc-1' });
+    socketB.emit(COLLABORATION_EVENTS.JOIN_DOCUMENT, { documentId: 'cursor-doc-2' });
+    await new Promise((r) => setTimeout(r, 100));
+
+    let bReceivedCursor = false;
+    let bReceivedSelection = false;
+    const cursorProbe = () => { bReceivedCursor = true; };
+    const selectionProbe = () => { bReceivedSelection = true; };
+    socketB.on(COLLABORATION_EVENTS.CURSOR_CHANGE, cursorProbe);
+    socketB.on(COLLABORATION_EVENTS.SELECTION_CHANGE, selectionProbe);
+
+    socketA.emit(COLLABORATION_EVENTS.CURSOR_CHANGE, { documentId: 'cursor-doc-1', from: 1, to: 1 });
+    socketA.emit(COLLABORATION_EVENTS.SELECTION_CHANGE, { documentId: 'cursor-doc-1', from: 1, to: 4 });
+
+    await new Promise((r) => setTimeout(r, 150));
+    socketB.off(COLLABORATION_EVENTS.CURSOR_CHANGE, cursorProbe);
+    socketB.off(COLLABORATION_EVENTS.SELECTION_CHANGE, selectionProbe);
+    assert.equal(bReceivedCursor, false, "cursor must not leak into another document's room");
+    assert.equal(bReceivedSelection, false, "selection must not leak into another document's room");
   } finally {
     socketA.disconnect();
     socketB.disconnect();
