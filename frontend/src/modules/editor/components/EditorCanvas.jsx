@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { DocumentEditorProvider, useDocumentEditorContext } from '../context/DocumentEditorContext.jsx';
+import { DocumentNavigationProvider } from '../context/DocumentNavigationContext.jsx';
 import { useDocumentEditor } from '../hooks/useDocumentEditor.js';
 import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useAutosave } from '../hooks/useAutosave.js';
@@ -21,16 +22,53 @@ import {
   GlobalSearchBar,
   restoreVersion,
 } from '../../history-search/index.js';
-import { apiGetDocument, apiAddAttachment } from '../services/documentApi.js';
+import { CollaborationProvider } from '../../collaboration/context/CollaborationContext.jsx';
+import { useDocumentCollaboration } from '../../collaboration/hooks/useDocumentCollaboration.js';
+import { ActiveUsers } from '../../collaboration/components/ActiveUsers.jsx';
+import { ConflictResolutionModal } from './ConflictResolutionModal.jsx';
+import { apiGetDocument, apiAddAttachment, apiCreateDocument } from '../services/documentApi.js';
 import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
 import { SAVE_STATUS } from '../types/document.js';
 
 const PRIMARY_LIVE_SEED_ID = '66cc00000000000000000001';
 
+/**
+ * EditorCanvasInner Component (DocSync Pro Primary Workspace Canvas)
+ *
+ * Coordinates live document state, autosaving, TipTap ProseMirror lifecycle,
+ * floating toolbars, contextual popovers, OCC 409 conflict modal, and responsive canvas layout.
+ *
+ * [ROMAN URDU]:
+ * Main editor orchestration container jo state, TipTap instance, autosave,
+ * 409 version conflict modal, headers, toolbars, aur sidebar ko aapas mein bind karta hai.
+ */
 function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
-  const { state, setDocument, updateTitle, addAttachment, setActiveCommentThread } = useDocumentEditor();
+  const {
+    state,
+    setDocument,
+    setDocumentId,
+    updateTitle,
+    addAttachment,
+    setConflict,
+    resolveConflict,
+    setActiveCommentThread,
+  } = useDocumentEditor();
   const { editorRef, isReady, executeCommand, editorInstance } = useTipTapEditor({
     initialContent: state.content || MOCK_INITIAL_DOCUMENT.content,
+  });
+
+  // Real-time collaboration: mirror this document's content over Socket.IO.
+  // Persistence remains with the existing autosave hook below.
+  const collaborationDocId = state.documentId || PRIMARY_LIVE_SEED_ID;
+  const {
+    activeUsers,
+    presenceCount,
+    connected: collabConnected,
+  } = useDocumentCollaboration({
+    documentId: collaborationDocId,
+    editor: editorInstance,
+    content: state.content,
+    plainText: state.plainText,
   });
 
   // Comment anchor integration
@@ -61,6 +99,62 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     position: { top: 0, left: 0 },
   });
 
+  // Notification navigation state
+  const pendingNavigationCommentIdRef = useRef(null);
+
+  // Focus a comment by its ID in the editor
+  const focusCommentById = useCallback((commentId) => {
+    if (!editorInstance) return;
+
+    // Set the active comment thread in the sidebar
+    setActiveCommentThread(commentId);
+
+    // Try to find the comment mark in the document and scroll to it
+    try {
+      const { state: editorState } = editorInstance;
+      const { doc } = editorState;
+      let foundPos = null;
+
+      doc.descendants((node, pos) => {
+        if (foundPos) return false;
+        if (node.marks) {
+          for (const mark of node.marks) {
+            if (mark.type.name === 'commentMark' && mark.attrs.commentThreadId === commentId) {
+              foundPos = pos;
+              return false;
+            }
+          }
+        }
+      });
+
+      if (foundPos !== null) {
+        editorInstance.chain().focus().setTextSelection(foundPos).run();
+      }
+    } catch {
+      // Comment mark not found in editor — sidebar highlight is sufficient
+    }
+  }, [editorInstance, setActiveCommentThread]);
+
+  // Navigate to a document and optionally focus a comment
+  const navigateToDocument = useCallback((documentId, commentId) => {
+    if (!documentId) return;
+
+    if (commentId) {
+      pendingNavigationCommentIdRef.current = commentId;
+    }
+
+    // If already on this document, just focus the comment
+    if (state.documentId === documentId) {
+      if (commentId) {
+        focusCommentById(commentId);
+      }
+      return;
+    }
+
+    // Switch to the target document — the useEffect below will handle the rest
+    setDocumentId(documentId);
+  }, [state.documentId, setDocumentId, focusCommentById]);
+
   // 1. Initialize & Fetch live MongoDB Atlas document
   useEffect(() => {
     let isMounted = true;
@@ -88,8 +182,20 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     };
   }, [state.documentId]);
 
-  // 2. Autosave hook with offline queue and OCC 409 conflict detection
-  const { status: saveStatus, lastSavedAt, error: saveError } = useAutosave({
+  // Focus pending comment after document loads (from notification navigation)
+  useEffect(() => {
+    if (isReady && editorInstance && pendingNavigationCommentIdRef.current) {
+      const commentId = pendingNavigationCommentIdRef.current;
+      pendingNavigationCommentIdRef.current = null;
+      // Small delay to ensure comment marks are hydrated
+      const timer = setTimeout(() => focusCommentById(commentId), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, editorInstance, state.documentId, focusCommentById]);
+
+  // 2. Autosave hook with bounded offline queue and OCC 409 conflict detection
+  // [Issue #14]: Trigger interactive conflict resolution modal instead of silently dropping user changes
+  const { status: saveStatus, lastSavedAt, error: saveError, saveNow } = useAutosave({
     documentId: state.documentId || PRIMARY_LIVE_SEED_ID,
     content: state.content,
     plainText: state.plainText,
@@ -97,14 +203,26 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     enabled: !state.isReadOnly,
     debounceMs: 1500,
     onConflictDetected: (conflictData) => {
-      console.warn('[DocSync Conflict]: Server version is newer. Re-hydrating...');
-      if (conflictData.serverDocument) {
-        setDocument(conflictData.serverDocument);
-      }
+      console.warn('[DocSync Conflict]: Server version mismatch (409 Conflict). Opening resolution dialog...');
+      setConflict(conflictData);
+    },
+    onCrossTabSync: (syncData) => {
+      console.log('[DocSync Cross-Tab Sync Notice]:', syncData);
     },
   });
 
-  // 3. Calculate live statistics
+  // 3. Handle conflict resolution action
+  const handleResolveConflict = (resolutionPayload) => {
+    resolveConflict(resolutionPayload);
+    // If user chose to overwrite with local edits or merge, force save
+    if (resolutionPayload.resolution === 'keep_local' || resolutionPayload.resolution === 'merge') {
+      setTimeout(() => {
+        saveNow();
+      }, 150);
+    }
+  };
+
+  // 4. Calculate live statistics
   const metrics = useMemo(() => {
     const text = state.plainText || '';
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -115,7 +233,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     };
   }, [state.plainText]);
 
-  // 4. Handle Global Slash Command Trigger
+  // 5. Handle Global Slash Command Trigger
   useEffect(() => {
     if (!editorInstance) return;
 
@@ -200,7 +318,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     }
   }, [editorInstance, loadedComments, resolveAnchor]);
 
-  // 5. Global Keyboard Shortcuts Listener (Ctrl+/ for Help, F11 for Zen)
+  // 7. Global Keyboard Shortcuts Listener (Ctrl+/ for Help, F11 for Zen)
   useEffect(() => {
     const handleGlobalShortcuts = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
@@ -262,8 +380,8 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     setLoadedComments(comments);
   }, []);
 
-  // Handle Drag-and-Drop file ingestion
-  const handleFileDrop = async (file) => {
+  // [Issue #46]: Handle Drag-and-Drop file ingestion with preview URL support
+  const handleFileDrop = async (file, previewUrl) => {
     if (!file || !state.documentId) return;
     try {
       const fakeAttachment = {
@@ -275,20 +393,28 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       };
       await apiAddAttachment(state.documentId, fakeAttachment);
       addAttachment(fakeAttachment);
-      executeCommand('setImage', { src: URL.createObjectURL(file) });
+      const urlToUse = previewUrl || (file.type.startsWith('image/') ? URL.createObjectURL(file) : null);
+      if (urlToUse) {
+        executeCommand('setImage', { src: urlToUse });
+      }
     } catch (err) {
       console.error('Failed to link file drop:', err);
     }
   };
 
   return (
+    <DocumentNavigationProvider value={{ navigateToDocument, currentDocumentId: state.documentId }}>
     <div
       data-editor-container="true"
-      className="flex flex-col min-h-screen bg-slate-100/75 text-slate-900 font-sans antialiased"
+      className="flex flex-col min-h-screen bg-slate-100/75 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased"
     >
-
       {/* 1. Top Global Navigation Header (Hidden in Zen Mode) */}
-      {!isZenMode && <TopGlobalHeader onSearchClick={() => setIsSearchOpen(true)} />}
+      {!isZenMode && (
+        <TopGlobalHeader
+          onSearchClick={() => setIsSearchOpen(true)}
+          onNavigateToDocument={navigateToDocument}
+        />
+      )}
 
       {/* 2. Document Sub-Header & Breadcrumb Bar */}
       {!isZenMode && (
@@ -307,12 +433,11 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       {/* 3. Main Workspace Area: Canvas + Floating Bars */}
       <div className="flex-1 flex w-full relative">
         {/* Left / Center Canvas Container */}
-        <main className="flex-1 min-w-0 flex flex-col items-center px-4 sm:px-8 pb-16 overflow-y-auto pt-4">
+        <main className="flex-1 min-w-0 flex flex-col items-center px-2 sm:px-6 md:px-8 pb-16 overflow-y-auto pt-2 sm:pt-4">
           {/* Floating / Sticky Formatting Toolbar (Hidden in Zen Mode) */}
           {!isZenMode && (
-            <div className="sticky top-2 z-30 mb-3 flex flex-col items-center gap-2">
+            <div className="sticky top-2 z-30 mb-3 flex flex-col items-center gap-2 max-w-full">
               <FormattingToolbar
-
                 onCommand={executeCommand}
                 activeMarks={state.activeMarks}
                 isReadOnly={state.isReadOnly}
@@ -321,6 +446,17 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
               {editorInstance && editorInstance.isActive('table') && (
                 <TableCellMenu editor={editorInstance} />
               )}
+            </div>
+          )}
+
+          {/* Real-time presence indicator (collaboration module) */}
+          {!isZenMode && (
+            <div className="fixed right-24 top-16 z-30 hidden sm:flex">
+              <ActiveUsers
+                users={activeUsers}
+                count={presenceCount}
+                connected={collabConnected}
+              />
             </div>
           )}
 
@@ -439,7 +575,48 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
           }
         }}
       />
+
+      {/* 9. Version Conflict Resolution Modal (HTTP 409 OCC) */}
+      <ConflictResolutionModal
+        isOpen={Boolean(state.conflictData)}
+        localContent={state.conflictData?.localContent}
+        localPlainText={state.conflictData?.localPlainText || state.plainText}
+        serverDocument={state.conflictData?.serverDocument}
+        onKeepLocal={() =>
+          handleResolveConflict({
+            resolution: 'keep_local',
+            serverDocument: state.conflictData?.serverDocument,
+          })
+        }
+        onDiscardAndLoadServer={() =>
+          handleResolveConflict({
+            resolution: 'keep_server',
+            serverDocument: state.conflictData?.serverDocument,
+          })
+        }
+        onSaveLocalCopy={async () => {
+          if (state.conflictData?.localContent) {
+            try {
+              const newDoc = await apiCreateDocument({
+                title: `${state.title || 'Untitled'} (Local Copy)`,
+                content: state.conflictData.localContent,
+                plainText: state.conflictData.localPlainText || state.plainText,
+                workspaceId: state.workspaceId,
+              });
+              handleResolveConflict({
+                resolution: 'keep_server',
+                serverDocument: state.conflictData?.serverDocument,
+              });
+              alert(`Local copy saved as new document: "${newDoc.title || 'Untitled'}"`);
+            } catch (err) {
+              console.error('Failed to create local copy:', err);
+            }
+          }
+        }}
+        onClose={() => setConflict(null)}
+      />
     </div>
+    </DocumentNavigationProvider>
   );
 }
 
@@ -454,13 +631,16 @@ export function EditorCanvas({
 }) {
   return (
     <DocumentEditorProvider initialDocumentId={documentId} initialReadOnly={initialReadOnly}>
-      <EditorCanvasInner
-        onDocumentArchived={onDocumentArchived}
-        onDocumentDuplicated={onDocumentDuplicated}
-      />
+      {/* CollaborationProvider supplies the shared Socket.IO connection used by
+          useDocumentCollaboration for real-time editing/presence. */}
+      <CollaborationProvider>
+        <EditorCanvasInner
+          onDocumentArchived={onDocumentArchived}
+          onDocumentDuplicated={onDocumentDuplicated}
+        />
+      </CollaborationProvider>
     </DocumentEditorProvider>
   );
 }
 
 export default EditorCanvas;
-

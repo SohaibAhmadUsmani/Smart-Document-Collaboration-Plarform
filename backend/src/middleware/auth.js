@@ -2,8 +2,11 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
 /**
- * Authentication Middleware Bridge (Maira's Module Contract).
- * Validates JWT Bearer tokens and provides safe development fallback user.
+ * Authentication Middleware (Maira's Module Contract).
+ * Validates JWT Bearer tokens.
+ * In development only (NODE_ENV=development), requests without a valid token
+ * fall back to a seeded test user so teammates can keep testing without logging in.
+ * In production, a valid token is always required — no fallback.
  */
 export function requireAuth(req, res, next) {
   try {
@@ -20,28 +23,40 @@ export function requireAuth(req, res, next) {
           id: decoded.id || decoded._id || decoded.userId,
           _id: decoded.id || decoded._id || decoded.userId,
           email: decoded.email,
-          role: decoded.role || 'editor',
-          name: decoded.name || 'User',
+          role: decoded.role || 'viewer',
+          name: decoded.name || 'User'
         };
         return next();
       } catch (tokenErr) {
-        // In dev mode, stale tokens are expected — the fallback user handles auth.
-        // Only log in production where invalid tokens are a security concern.
-        if (env.nodeEnv === 'production') {
-          console.warn('[Auth Notice]: Invalid session token:', tokenErr.message);
+        if (env.nodeEnv !== 'development') {
+          return res.status(401).json({
+            success: false,
+            error: 'Unauthorized',
+            message: 'Invalid or expired session token'
+          });
         }
+        console.warn('[Auth Notice]: Invalid session token in dev mode, using fallback user:', tokenErr.message);
       }
     }
 
-    // Development fallback user — matches seeded User in seedDatabase.js
     if (!req.user) {
-      req.user = {
-        id: '66cc00000000000000000004',
-        _id: '66cc00000000000000000004',
-        name: 'Muzammil (Document Editor Lead)',
-        email: 'muzammil@docplatform.local',
-        role: 'owner',
-      };
+      if (env.nodeEnv === 'development') {
+        // Development-only fallback — matches seeded User in seedDatabase.js
+        req.user = {
+          id: '66cc00000000000000000004',
+          _id: '66cc00000000000000000004',
+          name: 'Muzammil (Document Editor Lead)',
+          email: 'muzammil@docplatform.local',
+          role: 'owner'
+        };
+        return next();
+      }
+
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Authentication token is required'
+      });
     }
 
     next();

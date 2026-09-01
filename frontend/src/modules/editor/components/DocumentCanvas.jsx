@@ -1,14 +1,32 @@
+/**
+ * @file DocumentCanvas.jsx
+ * @description Headless semantic document canvas surface component.
+ * Exposes data-editor-* styling hooks for custom rendering environments.
+ * @module frontend/src/modules/editor/components/DocumentCanvas
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh headless semantic canvas surface hai jo `data-editor-surface` attributes expose karta hai
+ * taake kisi bhi visual theme ya layout mein embed kiya ja sake.
+ */
+
 import React from 'react';
 import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useDocumentEditor } from '../hooks/useDocumentEditor.js';
 
 /**
- * Headless, unstyled semantic document canvas.
- * Exposes data-editor-* styling hooks so any visual design can be plugged in.
+ * Headless semantic document canvas.
+ *
+ * [ROMAN URDU]:
+ * Semantic article element jo editor surface ko render karta hai aur read-only state track karta hai.
+ *
+ * @param {Object} props
+ * @param {Object} [props.options={}] - Editor configuration options
+ * @returns {React.JSX.Element}
  */
 export function DocumentCanvas({ options = {} }) {
   const { state } = useDocumentEditor();
-  const { editorRef, isReady, executeCommand } = useTipTapEditor(options);
+  const { editorRef, isReady } = useTipTapEditor(options);
 
   return (
     <article
@@ -34,3 +52,5 @@ export function DocumentCanvas({ options = {} }) {
     </article>
   );
 }
+
+export default DocumentCanvas;

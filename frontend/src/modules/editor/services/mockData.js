@@ -1,6 +1,14 @@
 /**
- * Realistic Mock Data & Fallback Adapter for DocSync Pro Document Editor
- * Matches the reference image inspiration: "Q3 Marketing Strategy & Execution Plan"
+ * @file mockData.js
+ * @description High-fidelity mock fixtures and fallback data for the DocSync Pro Document Editor.
+ * Matches reference UI: "Q3 Marketing Strategy & Execution Plan" with collaborators, comments, and history.
+ * @module frontend/src/modules/editor/services/mockData
+ * @owner Muzammil
+ *
+ * [ROMAN URDU]:
+ * Yeh file DocSync Pro ke realistic mock datasets provide karti hai.
+ * Initial template document, active collaborators, comments threads, aur version history
+ * ka sample data yahan mojood hai jo offline aur fallback mode mein use hota hai.
  */
 
 export const MOCK_CURRENT_USER = {
