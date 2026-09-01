@@ -6,6 +6,7 @@ import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useAutosave } from '../hooks/useAutosave.js';
 import { useCommentAnchors } from '../hooks/useCommentAnchors.js';
 import { plainTextOffsetToProseMirrorPos } from '../utils/plainTextOffsetToProseMirrorPos.js';
+import { extractPlainTextFromAst } from '../utils/astConverters.js';
 import { TopGlobalHeader } from './TopGlobalHeader.jsx';
 import { DocSubHeader } from './DocSubHeader.jsx';
 import { FormattingToolbar } from './FormattingToolbar.jsx';
@@ -21,6 +22,7 @@ import {
   VersionPreviewModal,
   GlobalSearchBar,
   restoreVersion,
+  fetchVersionDetails,
 } from '../../history-search/index.js';
 import { CollaborationProvider } from '../../collaboration/context/CollaborationContext.jsx';
 import { useDocumentCollaboration } from '../../collaboration/hooks/useDocumentCollaboration.js';
@@ -529,10 +531,20 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
         currentContent={state.content}
         onVersionRestored={(restoredData) => {
           if (restoredData) {
+            let parsed = restoredData.content;
+            while (typeof parsed === 'string' && (parsed.trim().startsWith('{') || parsed.trim().startsWith('"'))) {
+              try {
+                const next = JSON.parse(parsed);
+                if (next === parsed) break;
+                parsed = next;
+              } catch { break; }
+            }
+            const extractedText = typeof parsed === 'object' && parsed !== null ? extractPlainTextFromAst(parsed) : String(parsed || '');
             setDocument({
               ...state,
               title: restoredData.title || state.title,
-              content: restoredData.content || state.content,
+              content: parsed || state.content,
+              plainText: extractedText || state.plainText,
             });
           }
         }}
@@ -548,10 +560,20 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
             try {
               const res = await restoreVersion(state.documentId || PRIMARY_LIVE_SEED_ID, ver.id);
               if (res?.data) {
+                let parsed = res.data.content;
+                while (typeof parsed === 'string' && (parsed.trim().startsWith('{') || parsed.trim().startsWith('"'))) {
+                  try {
+                    const next = JSON.parse(parsed);
+                    if (next === parsed) break;
+                    parsed = next;
+                  } catch { break; }
+                }
+                const extractedText = typeof parsed === 'object' && parsed !== null ? extractPlainTextFromAst(parsed) : String(parsed || '');
                 setDocument({
                   ...state,
                   title: res.data.title || state.title,
-                  content: res.data.content || state.content,
+                  content: parsed || state.content,
+                  plainText: extractedText || state.plainText,
                 });
               }
             } catch (err) {
@@ -565,12 +587,60 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       <GlobalSearchBar
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
-        onSelectResult={(result) => {
+        onSelectResult={async (result) => {
           if (result?.documentId) {
+            try {
+              if (result.matchedVersionId) {
+                const res = await fetchVersionDetails(result.matchedVersionId);
+                if (res?.data) {
+                  let parsed = res.data.content;
+                  while (typeof parsed === 'string' && (parsed.trim().startsWith('{') || parsed.trim().startsWith('"'))) {
+                    try {
+                      const next = JSON.parse(parsed);
+                      if (next === parsed) break;
+                      parsed = next;
+                    } catch { break; }
+                  }
+                  const extractedText = typeof parsed === 'object' && parsed !== null ? extractPlainTextFromAst(parsed) : String(parsed || '');
+                  setDocument({
+                    ...state,
+                    id: result.documentId,
+                    _id: result.documentId,
+                    documentId: result.documentId,
+                    title: res.data.title || result.title || state.title,
+                    content: parsed || result.title,
+                    plainText: extractedText || String(result.title || ''),
+                  });
+                  return;
+                }
+              }
+            } catch (err) {
+              console.warn('[DocSync Notice]: Loading search result via document API:', err.message);
+            }
+
+            try {
+              const doc = await apiGetDocument(result.documentId);
+              if (doc) {
+                setDocument({
+                  ...doc,
+                  id: result.documentId,
+                  _id: result.documentId,
+                  documentId: result.documentId,
+                });
+                return;
+              }
+            } catch (err) {
+              console.warn('[DocSync Notice]: Document API fallback failed:', err.message);
+            }
+
             setDocument({
               ...state,
+              id: result.documentId,
+              _id: result.documentId,
               documentId: result.documentId,
               title: result.title || state.title,
+              content: result.matchedContentSnippet || result.title,
+              plainText: result.matchedContentSnippet || result.title,
             });
           }
         }}
