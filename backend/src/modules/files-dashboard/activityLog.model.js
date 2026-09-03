@@ -10,6 +10,7 @@ const ActivityLogSchema = new mongoose.Schema(
         'file.renamed',
         'file.moved',
         'file.deleted',
+        'file.copied',
         'document.created',
         'document.updated',
         'document.tags_updated',
