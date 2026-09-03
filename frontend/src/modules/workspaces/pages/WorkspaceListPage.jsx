@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TopBar } from '../components/TopBar';
-import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
+import { CreateWorkspaceModal } from '../components/createWorkspaceModal';
 import { Button } from '../../../components/Button';
 import { Badge } from '../../../components/Badge';
 import { EmptyState } from '../../../components/EmptyState';
