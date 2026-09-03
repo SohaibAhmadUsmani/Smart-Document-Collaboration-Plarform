@@ -68,6 +68,16 @@ export async function restoreVersion(documentId, versionId, restoredBy) {
 }
 
 /**
+ * Deletes a specific version snapshot.
+ * @param {string} versionId
+ */
+export async function deleteVersionSnapshot(versionId) {
+  return apiRequest(`/versions/${versionId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
  * Computes text diff between two version IDs.
  * @param {string} oldVersionId
  * @param {string} newVersionId

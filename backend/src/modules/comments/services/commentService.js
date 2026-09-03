@@ -129,19 +129,23 @@ export async function createComment({
     validateCommentFields({ body, anchorType, from, to });
   }
 
+  let parentAuthorId = null;
+
   if (parentComment) {
     if (!isValidObjectId(parentComment)) {
       throw new AppError('Invalid parent comment ID format', 400);
     }
 
     const parent = await Comment.findOne({ _id: parentComment, document: documentId })
-      .select('_id')
+      .select('_id author')
       .lean()
       .exec();
 
     if (!parent) {
       throw new AppError('Parent comment not found or does not belong to this document', 404);
     }
+
+    parentAuthorId = String(parent.author);
   }
 
   const cleanMentions = sanitizeMentions(mentions, userId);
@@ -163,9 +167,10 @@ export async function createComment({
 
   const saved = await comment.save();
 
-  // Create mention notifications after comment is saved (non-blocking)
-  if (cleanMentions.length > 0) {
-    try {
+  // Create notifications after comment is saved (non-blocking, best-effort)
+  try {
+    // Mention notifications
+    if (cleanMentions.length > 0) {
       await notificationService.createMentionNotifications({
         commentId: saved._id,
         senderId: userId,
@@ -173,9 +178,31 @@ export async function createComment({
         documentId,
         workspaceId: document.workspaceId,
       });
-    } catch (err) {
-      console.error('Failed to create mention notifications:', err);
     }
+
+    // Reply notification — notify parent comment author
+    if (parentComment && parentAuthorId && parentAuthorId !== String(userId)) {
+      await notificationService.createReplyNotification({
+        commentId: saved._id,
+        senderId: userId,
+        recipientId: parentAuthorId,
+        documentId,
+        workspaceId: document.workspaceId,
+      });
+    }
+
+    // Comment notification — notify document owner for top-level comments
+    if (!parentComment && document.createdBy && String(document.createdBy) !== String(userId)) {
+      await notificationService.createCommentNotification({
+        commentId: saved._id,
+        senderId: userId,
+        recipientId: String(document.createdBy),
+        documentId,
+        workspaceId: document.workspaceId,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to create notifications:', err);
   }
 
   return saved.populate([AUTHOR_POPULATE, MENTIONS_POPULATE]);

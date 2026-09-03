@@ -87,7 +87,7 @@ export function documentEditorReducer(state, action) {
       const doc = action.payload || {};
       return {
         ...state,
-        documentId: doc.id || doc._id || state.documentId,
+        documentId: doc.documentId || doc.id || doc._id || state.documentId,
         workspaceId: doc.workspaceId || state.workspaceId,
         folderId: doc.folderId || null,
         title: doc.title || 'Untitled Document',
@@ -107,6 +107,18 @@ export function documentEditorReducer(state, action) {
         lastSavedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
       };
     }
+
+    case DOCUMENT_ACTIONS.SET_DOCUMENT_ID:
+      return {
+        ...state,
+        documentId: action.payload,
+        content: null,
+        plainText: '',
+        title: 'Untitled Document',
+        activeCommentThreadId: null,
+        isDirty: false,
+        saveStatus: SAVE_STATUS.IDLE,
+      };
 
     case DOCUMENT_ACTIONS.UPDATE_TITLE:
       return {

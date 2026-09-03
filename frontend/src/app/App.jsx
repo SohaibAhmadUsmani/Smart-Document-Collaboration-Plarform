@@ -5,6 +5,11 @@ import { workspaceRoutes } from '../modules/workspaces/routes';
 import { ToastProvider } from '../components/Toast';
 import DashboardPage from '../modules/files-dashboard/pages/DashboardPage.jsx';
 import FileManagerPage from '../modules/files-dashboard/pages/FileManagerPage.jsx';
+import SignUpPage from '../modules/auth/pages/SignUpPage.jsx';
+import LoginPage from '../modules/auth/pages/LoginPage.jsx';
+import ForgotPasswordPage from '../modules/auth/pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from '../modules/auth/pages/ResetPasswordPage.jsx';
+import VerifyEmailPage from '../modules/auth/pages/VerifyEmailPage.jsx';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -48,8 +53,17 @@ export function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<Navigate to="/workspaces" replace />} />
+            {/* Default route → Login */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            {/* Authentication */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+            {/* Workspaces / Dashboard */}
             {workspaceRoutes}
+            {/* Document Editor */}
             <Route
               path="/editor"
               element={

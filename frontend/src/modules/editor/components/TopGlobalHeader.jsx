@@ -13,36 +13,37 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, ChevronDown, Command, CheckCheck, User, Settings, LogOut, X } from 'lucide-react';
+import { Search, ChevronDown, Command, User, Settings, LogOut, X } from 'lucide-react';
+import { NotificationBell } from '../../notifications/components/NotificationBell.jsx';
 import { MOCK_CURRENT_USER } from '../services/mockData.js';
 
 /**
  * TopGlobalHeader Component (DocSync Pro Global Navigation).
  *
- * [ROMAN URDU]:
- * Top-level application header jo workspace search, notifications modal, aur user menu render karta hai.
- *
  * @param {Object} props
  * @param {Function} [props.onSearchClick] - Optional callback when search is submitted or opened
+ * @param {Function} [props.onNavigateToDocument] - Called with (documentId, commentId?) for navigation
  * @returns {React.JSX.Element}
  */
-export function TopGlobalHeader({ onSearchClick }) {
+export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const searchInputRef = useRef(null);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
-  // Global CMD+K shortcut listener to focus search
+  // Global CMD+K shortcut listener to focus search or open search modal
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        searchInputRef.current?.focus();
+        if (onSearchClick) {
+          onSearchClick();
+        } else {
+          searchInputRef.current?.focus();
+        }
       } else if (e.key === 'Escape') {
-        setShowNotifications(false);
         setShowProfile(false);
         if (searchFocused) {
           searchInputRef.current?.blur();
@@ -53,7 +54,7 @@ export function TopGlobalHeader({ onSearchClick }) {
 
     const handleClickOutside = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
-        setShowNotifications(false);
+        // Notification bell handles its internal state
       }
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setShowProfile(false);
@@ -66,7 +67,7 @@ export function TopGlobalHeader({ onSearchClick }) {
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [searchFocused]);
+  }, [onSearchClick, searchFocused]);
 
   const handleClearSearch = () => {
     setSearchValue('');
@@ -82,7 +83,8 @@ export function TopGlobalHeader({ onSearchClick }) {
       {/* Left: Global Search Input with responsive expansion */}
       <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-md mr-2">
         <div
-          className={`relative flex items-center transition-all duration-200 ease-out w-full ${
+          onClick={() => onSearchClick?.()}
+          className={`relative flex items-center transition-all duration-200 ease-out w-full cursor-pointer ${
             searchFocused ? 'max-w-md' : 'max-w-[200px] xs:max-w-[240px] sm:max-w-xs'
           }`}
         >
@@ -90,20 +92,28 @@ export function TopGlobalHeader({ onSearchClick }) {
           <input
             ref={searchInputRef}
             type="text"
+            readOnly={Boolean(onSearchClick)}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
+            onFocus={() => {
+              if (onSearchClick) onSearchClick();
+              else setSearchFocused(true);
+            }}
+            onClick={() => onSearchClick?.()}
             onBlur={() => setSearchFocused(false)}
-            placeholder="Search documents..."
+            placeholder="Search documents, files, and activity..."
             aria-label="Search documents, files, and activity (Press Ctrl+K)"
-            className="w-full h-8.5 pl-9 pr-14 sm:pr-16 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-700/60 focus:bg-white dark:focus:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-lg border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-3 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all outline-none"
+            className="w-full h-8.5 pl-9 pr-14 sm:pr-16 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-700/60 focus:bg-white dark:focus:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-lg border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-3 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all outline-none cursor-pointer"
           />
 
           {/* Clear button or shortcut badge */}
           {searchValue ? (
             <button
               type="button"
-              onClick={handleClearSearch}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClearSearch();
+              }}
               aria-label="Clear search text"
               className="absolute right-2.5 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
@@ -118,56 +128,10 @@ export function TopGlobalHeader({ onSearchClick }) {
         </div>
       </div>
 
-      {/* Right: Notifications & Profile Dropdown */}
+      {/* Right: Notifications & Profile */}
       <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-        {/* Notification Bell with Dropdown */}
-        <div className="relative" ref={notifRef}>
-          <button
-            type="button"
-            onClick={() => {
-              setShowNotifications((prev) => !prev);
-              setShowProfile(false);
-            }}
-            aria-haspopup="dialog"
-            aria-expanded={showNotifications}
-            aria-label="Notifications (1 new)"
-            className="relative p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
-          </button>
-
-          {showNotifications && (
-            <div
-              role="dialog"
-              aria-label="Recent notifications"
-              className="absolute right-0 top-11 w-72 sm:w-80 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 animate-in fade-in zoom-in-95 duration-100"
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">Notifications</span>
-                <button
-                  type="button"
-                  onClick={() => alert('Marked all as read')}
-                  className="text-[10px] text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  <CheckCheck className="w-3 h-3" /> Mark all read
-                </button>
-              </div>
-              <div className="py-2 space-y-2 text-xs">
-                <div className="p-2 rounded-lg bg-blue-50/50 dark:bg-blue-950/40 hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-pointer">
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">Sarah Chen commented</p>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300">"Should we increase the target to 30%?"</p>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">10m ago</span>
-                </div>
-                <div className="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">Marcus Thorne joined workspace</p>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">1h ago</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Notification Bell (real data from useNotifications) */}
+        <NotificationBell onNavigateToDocument={onNavigateToDocument} />
 
         {/* User Profile Dropdown */}
         <div className="relative" ref={profileRef}>
@@ -175,7 +139,6 @@ export function TopGlobalHeader({ onSearchClick }) {
             type="button"
             onClick={() => {
               setShowProfile((prev) => !prev);
-              setShowNotifications(false);
             }}
             aria-haspopup="menu"
             aria-expanded={showProfile}

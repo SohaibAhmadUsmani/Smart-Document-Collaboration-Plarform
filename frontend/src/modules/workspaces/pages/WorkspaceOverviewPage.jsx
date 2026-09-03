@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { TopBar } from '../components/TopBar';
+import { FilterSortBar } from '../components/FilterSortBar';
 import { FolderModal } from '../components/FolderModal';
 import { RowMenu, RowMenuItem } from '../components/RowMenu';
 import { MembersPanel } from '../components/MembersPanel';
@@ -28,6 +29,9 @@ export function WorkspaceOverviewPage() {
     const [folderModal, setFolderModal] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
+    const [view, setView] = useState('list');
+    const [filterQuery, setFilterQuery] = useState('');
+    const [sortKey, setSortKey] = useState('name-asc');
     const canManage = role === 'OWNER';
     const canEdit = role === 'OWNER' || role === 'EDITOR';
     const currentFolder = useMemo(() => folders.find((f) => f._id === currentFolderId) ?? null, [folders, currentFolderId]);
@@ -40,7 +44,31 @@ export function WorkspaceOverviewPage() {
         }
         return trail;
     }, [currentFolder, folders]);
-    const visibleFolders = useMemo(() => folders.filter((f) => (f.parentFolder ?? null) === (currentFolderId ?? null)), [folders, currentFolderId]);
+    const visibleFolders = useMemo(() => {
+        const inCurrentFolder = folders.filter((f) => (f.parentFolder ?? null) === (currentFolderId ?? null));
+        const filtered = filterQuery.trim()
+            ? inCurrentFolder.filter((f) => f.name.toLowerCase().includes(filterQuery.trim().toLowerCase()))
+            : inCurrentFolder;
+        const sorted = [...filtered].sort((a, b) => {
+            switch (sortKey) {
+                case 'name-desc':
+                    return b.name.localeCompare(a.name);
+                case 'updated-desc':
+                    return new Date(b.updatedAt) - new Date(a.updatedAt);
+                case 'updated-asc':
+                    return new Date(a.updatedAt) - new Date(b.updatedAt);
+                case 'name-asc':
+                default:
+                    return a.name.localeCompare(b.name);
+            }
+        });
+        return sorted;
+    }, [folders, currentFolderId, filterQuery, sortKey]);
+    const lastUpdatedLabel = useMemo(() => {
+        if (folders.length === 0) return 'No updates yet';
+        const mostRecent = folders.reduce((latest, f) => (new Date(f.updatedAt) > new Date(latest.updatedAt) ? f : latest));
+        return `Last updated: ${timeAgo(mostRecent.updatedAt)}`;
+    }, [folders]);
     function openFolder(folderId) {
         setSearchParams(folderId ? { folder: folderId } : {});
     }
@@ -119,6 +147,85 @@ export function WorkspaceOverviewPage() {
  
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
+            <FilterSortBar
+              view={view}
+              onViewChange={setView}
+              query={filterQuery}
+              onQueryChange={setFilterQuery}
+              sortKey={sortKey}
+              onSortKeyChange={setSortKey}
+              lastUpdatedLabel={lastUpdatedLabel}
+            />
+
+            {view === 'grid' ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {foldersLoading ? (
+                  [...Array(4)].map((_, i) => (
+                    <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-surface" />
+                  ))
+                ) : visibleFolders.length === 0 ? (
+                  <div className="sm:col-span-2">
+                    <div className="rounded-xl border border-border bg-surface px-5 py-10 shadow-card">
+                      <EmptyState
+                        icon={<FolderIcon />}
+                        title={currentFolder ? (filterQuery ? 'No folders match' : 'This folder is empty') : (filterQuery ? 'No folders match' : 'No folders yet')}
+                        description={filterQuery ? 'Try a different filter term.' : "Create a folder to start organizing this workspace's content."}
+                        action={
+                          !filterQuery && canEdit ? (
+                            <Button variant="primary" onClick={() => setFolderModal({ mode: 'create' })}>
+                              <PlusIcon /> New folder
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  visibleFolders.map((folder) => (
+                    <div
+                      key={folder._id}
+                      className="flex items-center justify-between rounded-xl border border-border bg-surface p-4 shadow-card hover:shadow-popover"
+                    >
+                      <button
+                        onClick={() => openFolder(folder._id)}
+                        className="flex min-w-0 items-center gap-2.5 text-left text-ink-900 hover:text-accent"
+                      >
+                        <FolderIcon className="h-5 w-5 shrink-0 text-accent" />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{folder.name}</span>
+                          <span className="block text-xs text-ink-400">{timeAgo(folder.updatedAt)}</span>
+                        </span>
+                      </button>
+                      {canEdit && (
+                        <RowMenu>
+                          {(close) => (
+                            <>
+                              <RowMenuItem
+                                onClick={() => {
+                                  setFolderModal({ mode: 'rename', folder });
+                                  close();
+                                }}
+                              >
+                                Rename
+                              </RowMenuItem>
+                              <RowMenuItem
+                                danger
+                                onClick={() => {
+                                  setDeleteTarget(folder);
+                                  close();
+                                }}
+                              >
+                                Delete
+                              </RowMenuItem>
+                            </>
+                          )}
+                        </RowMenu>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
             <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-card">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -139,7 +246,7 @@ export function WorkspaceOverviewPage() {
                         <td />
                       </tr>))) : visibleFolders.length === 0 ? (<tr>
                       <td colSpan={3} className="px-5 py-10">
-                        <EmptyState icon={<FolderIcon />} title={currentFolder ? 'This folder is empty' : 'No folders yet'} description="Create a folder to start organizing this workspace's content." action={canEdit ? (<Button variant="primary" onClick={() => setFolderModal({ mode: 'create' })}>
+                        <EmptyState icon={<FolderIcon />} title={filterQuery ? 'No folders match' : (currentFolder ? 'This folder is empty' : 'No folders yet')} description={filterQuery ? 'Try a different filter term.' : "Create a folder to start organizing this workspace's content."} action={!filterQuery && canEdit ? (<Button variant="primary" onClick={() => setFolderModal({ mode: 'create' })}>
                                 <PlusIcon /> New folder
                               </Button>) : undefined}/>
                       </td>
@@ -173,6 +280,7 @@ export function WorkspaceOverviewPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
  
           <div className="space-y-6">
