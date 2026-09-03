@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { EditorCanvas } from '../modules/editor/index.js';
 import { workspaceRoutes } from '../modules/workspaces/routes';
 import { ToastProvider } from '../components/Toast';
+
 import SignUpPage from '../modules/auth/pages/SignUpPage.jsx';
 import LoginPage from '../modules/auth/pages/LoginPage.jsx';
 import ForgotPasswordPage from '../modules/auth/pages/ForgotPasswordPage.jsx';
@@ -75,20 +76,33 @@ export function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
-            {/* Default route */}
-            <Route path="/" element={<Navigate to="/workspaces" replace />} />
 
-            {/* Auth module */}
-            <Route path="/signup" element={<SignUpPage />} />
+            {/* Default route → Login */}
+            <Route
+              path="/"
+              element={<Navigate to="/login" replace />}
+            />
+
+            {/* Authentication */}
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-            <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route
+              path="/forgot-password"
+              element={<ForgotPasswordPage />}
+            />
+            <Route
+              path="/reset-password/:token"
+              element={<ResetPasswordPage />}
+            />
+            <Route
+              path="/verify-email/:token"
+              element={<VerifyEmailPage />}
+            />
 
-            {/* Workspaces module */}
+            {/* Workspaces / Dashboard */}
             {workspaceRoutes}
 
-            {/* Document editor */}
+            {/* Document Editor */}
             <Route
               path="/editor"
               element={
@@ -97,6 +111,7 @@ export function App() {
                 </div>
               }
             />
+
           </Routes>
         </ErrorBoundary>
       </BrowserRouter>
