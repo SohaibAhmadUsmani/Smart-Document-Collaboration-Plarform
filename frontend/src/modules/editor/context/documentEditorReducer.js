@@ -87,7 +87,7 @@ export function documentEditorReducer(state, action) {
       const doc = action.payload || {};
       return {
         ...state,
-        documentId: doc.id || doc._id || state.documentId,
+        documentId: doc.documentId || doc.id || doc._id || state.documentId,
         workspaceId: doc.workspaceId || state.workspaceId,
         folderId: doc.folderId || null,
         title: doc.title || 'Untitled Document',

@@ -12,6 +12,9 @@ export function useSharing(workspaceId) {
         setError(null);
         try {
             const data = await workspaceApi.getSharing(workspaceId);
+
+            console.log('RAW SHARING RESPONSE:', JSON.stringify(data));
+
             setSharing(data.sharing);
         }
         catch (err) {

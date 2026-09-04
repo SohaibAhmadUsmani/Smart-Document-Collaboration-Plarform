@@ -1,8 +1,10 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { EditorCanvas } from '../modules/editor/index.js';
 import { workspaceRoutes } from '../modules/workspaces/routes';
 import { ToastProvider } from '../components/Toast';
+import DashboardPage from '../modules/files-dashboard/pages/DashboardPage.jsx';
+import FileManagerPage from '../modules/files-dashboard/pages/FileManagerPage.jsx';
 import SignUpPage from '../modules/auth/pages/SignUpPage.jsx';
 import LoginPage from '../modules/auth/pages/LoginPage.jsx';
 import ForgotPasswordPage from '../modules/auth/pages/ForgotPasswordPage.jsx';
@@ -19,11 +21,9 @@ class ErrorBoundary extends React.Component {
     super(props);
     this.state = { error: null };
   }
-
   static getDerivedStateFromError(error) {
     return { error };
   }
-
   render() {
     if (this.state.error) {
       return (
@@ -36,39 +36,18 @@ class ErrorBoundary extends React.Component {
             minHeight: '100vh',
           }}
         >
-          <h2
-            style={{
-              fontSize: 18,
-              fontWeight: 'bold',
-              marginBottom: 12,
-            }}
-          >
+          <h2 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>
             Something crashed:
           </h2>
-
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              fontSize: 13,
-            }}
-          >
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>
             {this.state.error.message}
           </pre>
-
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              fontSize: 11,
-              marginTop: 8,
-              color: '#666',
-            }}
-          >
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11, marginTop: 8, color: '#666' }}>
             {this.state.error.stack}
           </pre>
         </div>
       );
     }
-
     return this.props.children;
   }
 }
@@ -81,18 +60,15 @@ export function App() {
           <Routes>
             {/* Default route */}
             <Route path="/" element={<Navigate to="/editor" replace />} />
-
-            {/* Auth module */}
-            <Route path="/signup" element={<SignUpPage />} />
+            {/* Authentication */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
-
-            {/* Workspaces module */}
+            {/* Workspaces / Dashboard */}
             {workspaceRoutes}
-
-            {/* Document editor */}
+            {/* Document Editor */}
             <Route
               path="/editor"
               element={
@@ -101,6 +77,8 @@ export function App() {
                 </div>
               }
             />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/files" element={<FileManagerPage />} />
 
             {/* Fallback 404 Route */}
             <Route path="*" element={

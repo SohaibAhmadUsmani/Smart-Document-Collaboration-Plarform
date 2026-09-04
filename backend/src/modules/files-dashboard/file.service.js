@@ -15,6 +15,7 @@ export async function createFileRecord({ multerFile, workspaceId, folderId, docu
     documentId: documentId || null,
     uploadedBy: userId,
   });
+  
 
   await logActivity({
     action: 'file.uploaded',
@@ -28,6 +29,34 @@ export async function createFileRecord({ multerFile, workspaceId, folderId, docu
   return file;
 }
 
+export async function duplicateFile(fileId, targetFolderId, userId) {
+  const original = await FileModel.findOne({ _id: fileId, isDeleted: false }).exec();
+  if (!original) return null;
+
+  const copy = await FileModel.create({
+    fileName: `Copy of ${original.fileName}`,
+    originalName: original.originalName,
+    mimeType: original.mimeType,
+    fileSize: original.fileSize,
+    storageKey: original.storageKey,
+    downloadUrl: original.downloadUrl,
+    workspaceId: original.workspaceId,
+    folderId: targetFolderId !== undefined ? targetFolderId : original.folderId,
+    documentId: null,
+    uploadedBy: userId,
+  });
+
+  await logActivity({
+    action: 'file.copied',
+    entityId: copy._id.toString(),
+    entityName: copy.fileName,
+    workspaceId: copy.workspaceId,
+    userId,
+    metadata: { originalFileId: fileId },
+  });
+
+  return copy;
+}
 export async function listFiles({ workspaceId, folderId }) {
   const query = { workspaceId, isDeleted: false };
   if (folderId !== undefined) {

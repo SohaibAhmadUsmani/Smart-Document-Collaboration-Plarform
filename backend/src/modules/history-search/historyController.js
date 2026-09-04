@@ -33,8 +33,8 @@ export async function handleGetHistory(req, res, next) {
 export async function handleCreateSnapshot(req, res, next) {
   try {
     const { documentId } = req.params;
-    const { title, content, changeSummary } = req.body;
-    const createdBy = req.user?.id || req.body.createdBy || 'Unknown User';
+    const { title, content, changeSummary, createdBy: clientCreatedBy } = req.body;
+    const createdBy = clientCreatedBy || req.user?.name || req.user?.email || 'Active Collaborator';
 
     const newSnapshot = await historyService.createSnapshot({
       documentId,
@@ -79,7 +79,8 @@ export async function handleGetVersion(req, res, next) {
 export async function handleRestoreVersion(req, res, next) {
   try {
     const { documentId, versionId } = req.params;
-    const restoredBy = req.user?.id || req.body.restoredBy || 'Unknown User';
+    const { restoredBy: clientRestoredBy } = req.body;
+    const restoredBy = clientRestoredBy || req.user?.name || req.user?.email || 'Active Collaborator';
 
     const restoredVersion = await historyService.restoreVersionSnapshot(
       documentId,
@@ -137,6 +138,25 @@ export async function handleSearch(req, res, next) {
       query: q || '',
       count: results.length,
       data: results
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/history-search/versions/:versionId
+ * Deletes a version snapshot.
+ */
+export async function handleDeleteVersion(req, res, next) {
+  try {
+    const { versionId } = req.params;
+    const deleted = await historyService.deleteVersionSnapshot(versionId);
+
+    res.json({
+      success: true,
+      message: `Version #${deleted.versionNumber} deleted successfully`,
+      data: deleted
     });
   } catch (error) {
     next(error);

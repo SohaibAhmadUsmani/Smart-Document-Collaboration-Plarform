@@ -74,14 +74,17 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
     window.location.href = '/login';
   };
 
-  // Global CMD+K shortcut listener to focus search
+  // Global CMD+K shortcut listener to focus search or open search modal
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        searchInputRef.current?.focus();
+        if (onSearchClick) {
+          onSearchClick();
+        } else {
+          searchInputRef.current?.focus();
+        }
       } else if (e.key === 'Escape') {
-        setShowNotifications(false);
         setShowProfile(false);
         if (searchFocused) {
           searchInputRef.current?.blur();
@@ -92,7 +95,7 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
 
     const handleClickOutside = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
-        setShowNotifications(false);
+        // Notification bell handles its internal state
       }
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setShowProfile(false);
@@ -105,7 +108,7 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [searchFocused]);
+  }, [onSearchClick, searchFocused]);
 
   const handleClearSearch = () => {
     setSearchValue('');
@@ -121,7 +124,8 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
       {/* Left: Global Search Input with responsive expansion */}
       <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-md mr-2">
         <div
-          className={`relative flex items-center transition-all duration-200 ease-out w-full ${
+          onClick={() => onSearchClick?.()}
+          className={`relative flex items-center transition-all duration-200 ease-out w-full cursor-pointer ${
             searchFocused ? 'max-w-md' : 'max-w-[200px] xs:max-w-[240px] sm:max-w-xs'
           }`}
         >
@@ -129,20 +133,28 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
           <input
             ref={searchInputRef}
             type="text"
+            readOnly={Boolean(onSearchClick)}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
+            onFocus={() => {
+              if (onSearchClick) onSearchClick();
+              else setSearchFocused(true);
+            }}
+            onClick={() => onSearchClick?.()}
             onBlur={() => setSearchFocused(false)}
-            placeholder="Search documents..."
+            placeholder="Search documents, files, and activity..."
             aria-label="Search documents, files, and activity (Press Ctrl+K)"
-            className="w-full h-8.5 pl-9 pr-14 sm:pr-16 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-700/60 focus:bg-white dark:focus:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-lg border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-3 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all outline-none"
+            className="w-full h-8.5 pl-9 pr-14 sm:pr-16 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-700/60 focus:bg-white dark:focus:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-lg border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-3 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all outline-none cursor-pointer"
           />
 
           {/* Clear button or shortcut badge */}
           {searchValue ? (
             <button
               type="button"
-              onClick={handleClearSearch}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClearSearch();
+              }}
               aria-label="Clear search text"
               className="absolute right-2.5 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >

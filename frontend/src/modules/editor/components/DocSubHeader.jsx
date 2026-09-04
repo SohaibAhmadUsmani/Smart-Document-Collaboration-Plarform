@@ -25,6 +25,7 @@ import {
   CloudOff,
   MoreVertical,
   Keyboard,
+  History,
 } from 'lucide-react';
 import { MOCK_COLLABORATORS } from '../services/mockData.js';
 import { SAVE_STATUS } from '../types/document.js';
@@ -56,6 +57,7 @@ export function DocSubHeader({
   onShareClick,
   onPublishClick,
   onOpenShortcuts,
+  onOpenHistory,
 }) {
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -249,6 +251,17 @@ export function DocSubHeader({
           className="hidden md:flex h-8.5 px-2.5 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-2xs transition-colors"
         >
           <span className="font-mono text-[10px] font-semibold text-slate-400 dark:text-slate-400">Ctrl+/</span>
+        </button>
+
+        {/* History Button */}
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          className="h-8.5 px-3.5 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-all active:scale-98"
+          title="View Version History"
+        >
+          <History className="w-3.5 h-3.5 text-blue-600" />
+          <span>History</span>
         </button>
 
         {/* Share Button */}

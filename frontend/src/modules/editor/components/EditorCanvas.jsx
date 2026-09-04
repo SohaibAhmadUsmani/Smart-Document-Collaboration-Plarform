@@ -6,6 +6,7 @@ import { useTipTapEditor } from '../hooks/useTipTapEditor.js';
 import { useAutosave } from '../hooks/useAutosave.js';
 import { useCommentAnchors } from '../hooks/useCommentAnchors.js';
 import { plainTextOffsetToProseMirrorPos } from '../utils/plainTextOffsetToProseMirrorPos.js';
+import { extractPlainTextFromAst } from '../utils/astConverters.js';
 import { TopGlobalHeader } from './TopGlobalHeader.jsx';
 import { DocSubHeader } from './DocSubHeader.jsx';
 import { FormattingToolbar } from './FormattingToolbar.jsx';
@@ -16,9 +17,17 @@ import { BubbleFloatingMenu } from './BubbleFloatingMenu.jsx';
 import { TableCellMenu } from './TableCellMenu.jsx';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal.jsx';
 import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
-
+import {
+  VersionHistoryDrawer,
+  VersionPreviewModal,
+  GlobalSearchBar,
+  restoreVersion,
+  fetchVersionDetails,
+} from '../../history-search/index.js';
 import { CollaborationProvider } from '../../collaboration/context/CollaborationContext.jsx';
 import { useDocumentCollaboration } from '../../collaboration/hooks/useDocumentCollaboration.js';
+import { usePresencePosition } from '../../collaboration/hooks/usePresencePosition.js';
+import { getCurrentUserId } from '../../collaboration/services/socketClient.js';
 import { ActiveUsers } from '../../collaboration/components/ActiveUsers.jsx';
 import { ConflictResolutionModal } from './ConflictResolutionModal.jsx';
 import { apiGetDocument, apiAddAttachment, apiCreateDocument } from '../services/documentApi.js';
@@ -66,6 +75,14 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     plainText: state.plainText,
   });
 
+  // Real-time cursor & selection presence (remote carets + highlighted ranges).
+  const currentUserId = getCurrentUserId();
+  usePresencePosition({
+    documentId: collaborationDocId,
+    editor: editorInstance,
+    userId: currentUserId,
+  });
+
   // Comment anchor integration
   const {
     captureSelectionAnchor,
@@ -77,6 +94,11 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
+
+  // History & Search UI State (Owner: Aiman)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Comment mark hydration state
   const hydratedCommentIdsRef = useRef(new Set());
@@ -399,7 +421,12 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       className="flex flex-col min-h-screen bg-slate-100/75 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased"
     >
       {/* 1. Top Global Navigation Header (Hidden in Zen Mode) */}
-      {!isZenMode && <TopGlobalHeader onNavigateToDocument={navigateToDocument} />}
+      {!isZenMode && (
+        <TopGlobalHeader
+          onSearchClick={() => setIsSearchOpen(true)}
+          onNavigateToDocument={navigateToDocument}
+        />
+      )}
 
       {/* 2. Document Sub-Header & Breadcrumb Bar */}
       {!isZenMode && (
@@ -411,6 +438,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
           onTitleChange={(newTitle) => updateTitle(newTitle)}
           onShareClick={() => alert('Workspace sharing modal opened: manage access and link permissions.')}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          onOpenHistory={() => setIsHistoryOpen(true)}
         />
       )}
 
@@ -504,7 +532,131 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
         onClose={() => setIsShortcutsOpen(false)}
       />
 
-      {/* 6. Version Conflict Resolution Modal (HTTP 409 OCC) */}
+      {/* 6. Version History Drawer Overlay (Owner: Aiman) */}
+      <VersionHistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        documentId={state.documentId || PRIMARY_LIVE_SEED_ID}
+        currentTitle={state.title}
+        currentContent={state.content}
+        onVersionRestored={(restoredData) => {
+          if (restoredData) {
+            let parsed = restoredData.content;
+            while (typeof parsed === 'string' && (parsed.trim().startsWith('{') || parsed.trim().startsWith('"'))) {
+              try {
+                const next = JSON.parse(parsed);
+                if (next === parsed) break;
+                parsed = next;
+              } catch { break; }
+            }
+            const extractedText = typeof parsed === 'object' && parsed !== null ? extractPlainTextFromAst(parsed) : String(parsed || '');
+            setDocument({
+              ...state,
+              title: restoredData.title || state.title,
+              content: parsed || state.content,
+              plainText: extractedText || state.plainText,
+            });
+          }
+        }}
+        onSelectVersionPreview={(ver) => setPreviewVersion(ver)}
+      />
+
+      {/* 7. Version Preview Modal Overlay (Owner: Aiman) */}
+      {previewVersion && (
+        <VersionPreviewModal
+          version={previewVersion}
+          onClose={() => setPreviewVersion(null)}
+          onRestore={async (ver) => {
+            try {
+              const res = await restoreVersion(state.documentId || PRIMARY_LIVE_SEED_ID, ver.id);
+              if (res?.data) {
+                let parsed = res.data.content;
+                while (typeof parsed === 'string' && (parsed.trim().startsWith('{') || parsed.trim().startsWith('"'))) {
+                  try {
+                    const next = JSON.parse(parsed);
+                    if (next === parsed) break;
+                    parsed = next;
+                  } catch { break; }
+                }
+                const extractedText = typeof parsed === 'object' && parsed !== null ? extractPlainTextFromAst(parsed) : String(parsed || '');
+                setDocument({
+                  ...state,
+                  title: res.data.title || state.title,
+                  content: parsed || state.content,
+                  plainText: extractedText || state.plainText,
+                });
+              }
+            } catch (err) {
+              alert(`Restore failed: ${err.message}`);
+            }
+          }}
+        />
+      )}
+
+      {/* 8. Global Search Overlay (Owner: Aiman) */}
+      <GlobalSearchBar
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onSelectResult={async (result) => {
+          if (result?.documentId) {
+            try {
+              if (result.matchedVersionId) {
+                const res = await fetchVersionDetails(result.matchedVersionId);
+                if (res?.data) {
+                  let parsed = res.data.content;
+                  while (typeof parsed === 'string' && (parsed.trim().startsWith('{') || parsed.trim().startsWith('"'))) {
+                    try {
+                      const next = JSON.parse(parsed);
+                      if (next === parsed) break;
+                      parsed = next;
+                    } catch { break; }
+                  }
+                  const extractedText = typeof parsed === 'object' && parsed !== null ? extractPlainTextFromAst(parsed) : String(parsed || '');
+                  setDocument({
+                    ...state,
+                    id: result.documentId,
+                    _id: result.documentId,
+                    documentId: result.documentId,
+                    title: res.data.title || result.title || state.title,
+                    content: parsed || result.title,
+                    plainText: extractedText || String(result.title || ''),
+                  });
+                  return;
+                }
+              }
+            } catch (err) {
+              console.warn('[DocSync Notice]: Loading search result via document API:', err.message);
+            }
+
+            try {
+              const doc = await apiGetDocument(result.documentId);
+              if (doc) {
+                setDocument({
+                  ...doc,
+                  id: result.documentId,
+                  _id: result.documentId,
+                  documentId: result.documentId,
+                });
+                return;
+              }
+            } catch (err) {
+              console.warn('[DocSync Notice]: Document API fallback failed:', err.message);
+            }
+
+            setDocument({
+              ...state,
+              id: result.documentId,
+              _id: result.documentId,
+              documentId: result.documentId,
+              title: result.title || state.title,
+              content: result.matchedContentSnippet || result.title,
+              plainText: result.matchedContentSnippet || result.title,
+            });
+          }
+        }}
+      />
+
+      {/* 9. Version Conflict Resolution Modal (HTTP 409 OCC) */}
       <ConflictResolutionModal
         isOpen={Boolean(state.conflictData)}
         localContent={state.conflictData?.localContent}

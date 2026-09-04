@@ -28,6 +28,8 @@ All users editing the same document join the same room.
 - `document:join` — client joins a document room. Payload `{ documentId }`.
 - `document:leave` — client leaves a document room. Payload `{ documentId }`.
 - `document:change` — document content changed. Broadcast to **other** members of the room (sender excluded).
+- `document:cursor` — a member's cursor position moved. Payload `{ documentId, from, to }` (sender excluded).
+- `document:selection` — a member's selection range changed. Payload `{ documentId, from, to }` (sender excluded).
 - `collaboration:presence` — server broadcasts active users for a document room.
 
 ## Files

@@ -13,6 +13,8 @@ fileRouter.use(requireAuth);
 // POST /api/files/upload - Upload a new file
 fileRouter.post('/upload', upload.single('file'), controller.uploadFileHandler);
 
+fileRouter.post('/:id/duplicate', controller.duplicateFileHandler);
+
 // GET /api/files - List files for a workspace/folder
 fileRouter.get('/', controller.listFilesHandler);
 

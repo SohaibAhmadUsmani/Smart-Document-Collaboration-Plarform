@@ -34,9 +34,22 @@ export async function getHistoryByDocumentId(documentId) {
     throw new Error('documentId is required');
   }
 
-  const versions = inMemoryVersionStore
+  let versions = inMemoryVersionStore
     .filter(v => v.documentId === String(documentId))
     .sort((a, b) => b.versionNumber - a.versionNumber); // Latest first
+
+  if (versions.length === 0) {
+    createVersionRecord({
+      documentId: String(documentId),
+      title: 'Untitled Document',
+      content: 'Initial document snapshot',
+      createdBy: 'Aiman (System)',
+      changeSummary: 'Auto-created initial document version'
+    });
+    versions = inMemoryVersionStore
+      .filter(v => v.documentId === String(documentId))
+      .sort((a, b) => b.versionNumber - a.versionNumber);
+  }
 
   return versions;
 }
@@ -81,6 +94,20 @@ export async function restoreVersionSnapshot(documentId, versionId, restoredBy =
 }
 
 /**
+ * Deletes a version snapshot by its unique ID.
+ */
+export async function deleteVersionSnapshot(versionId) {
+  const index = inMemoryVersionStore.findIndex(v => v.id === String(versionId));
+  if (index === -1) {
+    const error = new Error(`Version with ID '${versionId}' not found`);
+    error.statusCode = 404;
+    throw error;
+  }
+  const deleted = inMemoryVersionStore.splice(index, 1)[0];
+  return deleted;
+}
+
+/**
  * Calculates a line-by-line text difference between two string contents.
  */
 export async function calculateDiff(oldVersionId, newVersionId) {
@@ -116,6 +143,41 @@ export async function calculateDiff(oldVersionId, newVersionId) {
   };
 }
 
+function extractPlainText(content) {
+  if (!content) return '';
+  let parsed = content;
+  if (typeof content === 'string') {
+    const trimmed = content.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        return content;
+      }
+    } else {
+      return content;
+    }
+  }
+
+  function walk(node) {
+    if (!node) return '';
+    if (node.type === 'text' && node.text) {
+      return node.text;
+    }
+    if (Array.isArray(node.content)) {
+      return node.content.map(walk).filter(Boolean).join(' ');
+    }
+    return '';
+  }
+
+  if (typeof parsed === 'object' && parsed !== null) {
+    const text = walk(parsed);
+    if (text) return text;
+  }
+
+  return typeof content === 'string' ? content : '';
+}
+
 /**
  * Performs a global search across all version snapshots by keyword matching.
  */
@@ -128,8 +190,9 @@ export async function searchAllDocuments(query) {
 
   // Search through version snapshots matching title, content, or summary
   const matches = inMemoryVersionStore.filter(version => {
+    const plainContent = extractPlainText(version.content);
     const titleMatch = version.title.toLowerCase().includes(searchTerm);
-    const contentMatch = version.content.toLowerCase().includes(searchTerm);
+    const contentMatch = plainContent.toLowerCase().includes(searchTerm) || version.content.toLowerCase().includes(searchTerm);
     const summaryMatch = version.changeSummary.toLowerCase().includes(searchTerm);
     return titleMatch || contentMatch || summaryMatch;
   });
@@ -137,13 +200,14 @@ export async function searchAllDocuments(query) {
   // Group by documentId and return the latest matching version for each document
   const resultMap = new Map();
   matches.forEach(item => {
+    const plainText = extractPlainText(item.content);
     if (!resultMap.has(item.documentId) || resultMap.get(item.documentId).versionNumber < item.versionNumber) {
       resultMap.set(item.documentId, {
         documentId: item.documentId,
         matchedVersionId: item.id,
         versionNumber: item.versionNumber,
         title: item.title,
-        matchedContentSnippet: item.content.slice(0, 150),
+        matchedContentSnippet: plainText ? plainText.slice(0, 140) : (item.changeSummary || item.title),
         updatedAt: item.createdAt
       });
     }

@@ -43,3 +43,31 @@ export function disconnectCollabSocket() {
     socket = null;
   }
 }
+
+/**
+ * Resolve the local collaborating user's id from the same JWT that is sent
+ * through the socket handshake and the existing API layer. Falls back to the
+ * seeded dev user (matching the backend) when no valid token is available.
+ *
+ * @returns {string}
+ */
+export function getCurrentUserId() {
+  const token =
+    (typeof localStorage !== 'undefined' && localStorage.getItem('token')) ||
+    (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('token'));
+
+  if (token) {
+    try {
+      const payload = token.split('.')[1];
+      if (payload) {
+        const decoded = JSON.parse(atob(payload));
+        const id = String(decoded.id || decoded._id || decoded.userId || '');
+        if (id) return id;
+      }
+    } catch {
+      // Ignore malformed tokens and fall back to the dev seed id below.
+    }
+  }
+
+  return '66cc00000000000000000004';
+}

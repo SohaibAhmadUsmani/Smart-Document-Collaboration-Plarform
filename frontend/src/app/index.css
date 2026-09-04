@@ -410,3 +410,33 @@
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+/* Real-time collaboration — remote cursor & selection decorations */
+.collab-remote-selection {
+  border-radius: 2px;
+  pointer-events: none;
+}
+.collab-remote-cursor {
+  pointer-events: none;
+  z-index: 1;
+}
+.collab-remote-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  margin-left: -1px;
+}
+.collab-remote-tag {
+  position: absolute;
+  top: -1.1em;
+  left: 0;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: #fff;
+  pointer-events: none;
+  user-select: none;
+}

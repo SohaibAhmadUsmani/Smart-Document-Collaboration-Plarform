@@ -45,6 +45,26 @@ export async function uploadFileHandler(req, res, next) {
   }
 }
 
+export async function duplicateFileHandler(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { folderId } = req.body;
+    const userId = getUserId(req);
+
+    const copy = await fileService.duplicateFile(id, folderId, userId);
+    if (!copy) {
+      return res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: `File with ID '${id}' was not found.`,
+      });
+    }
+
+    return res.status(201).json({ success: true, message: 'File copied', data: copy });
+  } catch (error) {
+    next(error);
+  }
+}
 export async function listFilesHandler(req, res, next) {
   try {
     const { workspaceId, folderId } = req.query;
