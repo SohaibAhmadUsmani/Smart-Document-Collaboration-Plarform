@@ -18,6 +18,7 @@ import { CommentThread } from './CommentThread.jsx';
  */
 export function CommentList({
   topLevelComments = [],
+  workspaceId,
   getReplies,
   onReply,
   onResolve,
@@ -62,6 +63,7 @@ export function CommentList({
           key={comment._id}
           comment={comment}
           replies={getReplies(comment._id)}
+          workspaceId={workspaceId}
           onReply={onReply}
           onResolve={onResolve}
           onDelete={onDelete}

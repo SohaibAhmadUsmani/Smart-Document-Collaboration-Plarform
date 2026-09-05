@@ -1,11 +1,25 @@
-/**
- * historyController.js
- * Owner: Aiman
- * 
- * Express request/response controller handlers for Version History & Search.
- */
-
+import mongoose from 'mongoose';
 import * as historyService from './historyService.js';
+import { DocumentModel } from '../documents/document.model.js';
+import { permissionService } from '../workspaces/services/permissionService.js';
+import { WorkspaceMember } from '../workspaces/models/WorkspaceMember.js';
+import { Workspace } from '../workspaces/models/Workspace.js';
+
+/**
+ * Verifies if user has permission to perform action on a document's workspace.
+ */
+async function checkDocAccess(userId, documentId, requiredAction = 'view') {
+  if (mongoose.connection?.readyState !== 1 || !mongoose.isValidObjectId(documentId)) {
+    return true;
+  }
+  const doc = await DocumentModel.findById(documentId).lean();
+  if (!doc) return true;
+  if (!userId) return false;
+  if (String(doc.createdBy) === String(userId)) return true;
+  const userRole = await permissionService.getUserRole(userId, doc.workspaceId);
+  if (!userRole) return false;
+  return permissionService.roleSatisfiesAction(userRole, requiredAction);
+}
 
 /**
  * GET /api/history-search/documents/:documentId/history
@@ -14,6 +28,16 @@ import * as historyService from './historyService.js';
 export async function handleGetHistory(req, res, next) {
   try {
     const { documentId } = req.params;
+    const userId = req.user?.id || req.user?._id;
+    const allowed = await checkDocAccess(userId, documentId, 'view');
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Access denied. You do not have view access to this document history.',
+      });
+    }
+
     const history = await historyService.getHistoryByDocumentId(documentId);
 
     res.json({
@@ -33,6 +57,16 @@ export async function handleGetHistory(req, res, next) {
 export async function handleCreateSnapshot(req, res, next) {
   try {
     const { documentId } = req.params;
+    const userId = req.user?.id || req.user?._id;
+    const allowed = await checkDocAccess(userId, documentId, 'edit');
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Access denied. You do not have edit access to create a version snapshot.',
+      });
+    }
+
     const { title, content, changeSummary, createdBy: clientCreatedBy } = req.body;
     const createdBy = clientCreatedBy || req.user?.name || req.user?.email || 'Active Collaborator';
 
@@ -63,6 +97,18 @@ export async function handleGetVersion(req, res, next) {
     const { versionId } = req.params;
     const version = await historyService.getVersionDetails(versionId);
 
+    const userId = req.user?.id || req.user?._id;
+    if (version?.documentId) {
+      const allowed = await checkDocAccess(userId, version.documentId, 'view');
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden',
+          message: 'Access denied. You do not have view access to this version snapshot.',
+        });
+      }
+    }
+
     res.json({
       success: true,
       data: version
@@ -79,6 +125,16 @@ export async function handleGetVersion(req, res, next) {
 export async function handleRestoreVersion(req, res, next) {
   try {
     const { documentId, versionId } = req.params;
+    const userId = req.user?.id || req.user?._id;
+    const allowed = await checkDocAccess(userId, documentId, 'edit');
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        error: 'Forbidden',
+        message: 'Access denied. You do not have edit access to restore this document version.',
+      });
+    }
+
     const { restoredBy: clientRestoredBy } = req.body;
     const restoredBy = clientRestoredBy || req.user?.name || req.user?.email || 'Active Collaborator';
 
@@ -126,12 +182,29 @@ export async function handleGetDiff(req, res, next) {
 
 /**
  * GET /api/history-search/search
- * Performs global search for documents by keyword.
+ * Performs global search for documents by keyword, isolated to accessible workspaces.
  */
 export async function handleSearch(req, res, next) {
   try {
     const { q } = req.query;
-    const results = await historyService.searchAllDocuments(q);
+    const userId = String(req.user?.id || req.user?._id || '');
+
+    // Resolve user's accessible workspaces
+    let accessibleWorkspaceIds = [];
+    if (mongoose.connection?.readyState === 1 && userId && mongoose.isValidObjectId(userId)) {
+      try {
+        const memberships = await WorkspaceMember.find({ user: userId }).select('workspace').lean();
+        const owned = await Workspace.find({ owner: userId }).select('_id').lean();
+        accessibleWorkspaceIds = Array.from(new Set([
+          ...memberships.map(m => String(m.workspace)),
+          ...owned.map(w => String(w._id))
+        ]));
+      } catch {
+        // Continue with empty list if query fails
+      }
+    }
+
+    const results = await historyService.searchAllDocuments(q, accessibleWorkspaceIds, userId);
 
     res.json({
       success: true,
@@ -151,6 +224,20 @@ export async function handleSearch(req, res, next) {
 export async function handleDeleteVersion(req, res, next) {
   try {
     const { versionId } = req.params;
+    const version = await historyService.getVersionDetails(versionId);
+
+    const userId = req.user?.id || req.user?._id;
+    if (version?.documentId) {
+      const allowed = await checkDocAccess(userId, version.documentId, 'delete');
+      if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden',
+          message: 'Access denied. Version history snapshots are immutable audit records and can only be managed by the document owner.',
+        });
+      }
+    }
+
     const deleted = await historyService.deleteVersionSnapshot(versionId);
 
     res.json({
@@ -162,3 +249,4 @@ export async function handleDeleteVersion(req, res, next) {
     next(error);
   }
 }
+

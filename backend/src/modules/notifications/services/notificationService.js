@@ -284,10 +284,98 @@ export async function deleteNotification(notificationId, userId) {
   return { deleted: true };
 }
 
+export async function createShareNotification({
+  senderId,
+  recipientId,
+  documentId,
+  workspaceId,
+}) {
+  if (!isValidObjectId(senderId) || !isValidObjectId(documentId)) {
+    throw new AppError('Invalid ID provided for notification creation', 400);
+  }
+  if (!isValidObjectId(recipientId) || String(senderId) === String(recipientId)) {
+    return null;
+  }
+  if (!workspaceId || !isValidObjectId(String(workspaceId))) {
+    throw new AppError('Invalid workspace ID provided for notification creation', 400);
+  }
+
+  return await Notification.create({
+    recipient: new mongoose.Types.ObjectId(recipientId),
+    sender: new mongoose.Types.ObjectId(senderId),
+    type: 'share',
+    document: new mongoose.Types.ObjectId(documentId),
+    workspace: new mongoose.Types.ObjectId(workspaceId),
+    read: false,
+  });
+}
+
+export async function createPermissionChangeNotification({
+  senderId,
+  recipientId,
+  documentId,
+  workspaceId,
+}) {
+  if (!isValidObjectId(senderId) || !isValidObjectId(documentId)) {
+    throw new AppError('Invalid ID provided for notification creation', 400);
+  }
+  if (!isValidObjectId(recipientId) || String(senderId) === String(recipientId)) {
+    return null;
+  }
+  if (!workspaceId || !isValidObjectId(String(workspaceId))) {
+    throw new AppError('Invalid workspace ID provided for notification creation', 400);
+  }
+
+  return await Notification.create({
+    recipient: new mongoose.Types.ObjectId(recipientId),
+    sender: new mongoose.Types.ObjectId(senderId),
+    type: 'permission_change',
+    document: new mongoose.Types.ObjectId(documentId),
+    workspace: new mongoose.Types.ObjectId(workspaceId),
+    read: false,
+  });
+}
+
+export async function createDocumentUpdateNotification({
+  senderId,
+  recipientIds,
+  documentId,
+  workspaceId,
+}) {
+  if (!isValidObjectId(senderId) || !isValidObjectId(documentId)) {
+    throw new AppError('Invalid ID provided for notification creation', 400);
+  }
+  if (!Array.isArray(recipientIds) || recipientIds.length === 0) {
+    return;
+  }
+  const uniqueRecipients = [
+    ...new Set(
+      recipientIds.filter((id) => id != null && isValidObjectId(String(id))).map((id) => String(id))
+    ),
+  ].filter((id) => id !== String(senderId));
+
+  if (uniqueRecipients.length === 0) return;
+
+  const workspaceObjectId = new mongoose.Types.ObjectId(workspaceId);
+  const notifications = uniqueRecipients.map((recipientId) => ({
+    recipient: new mongoose.Types.ObjectId(recipientId),
+    sender: new mongoose.Types.ObjectId(senderId),
+    type: 'document_update',
+    document: new mongoose.Types.ObjectId(documentId),
+    workspace: workspaceObjectId,
+    read: false,
+  }));
+
+  await Notification.insertMany(notifications, { ordered: false });
+}
+
 export const notificationService = {
   createMentionNotifications,
   createCommentNotification,
   createReplyNotification,
+  createShareNotification,
+  createPermissionChangeNotification,
+  createDocumentUpdateNotification,
   getUserNotifications,
   getUnreadNotifications,
   markNotificationAsRead,

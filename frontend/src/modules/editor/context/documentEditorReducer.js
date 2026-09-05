@@ -109,12 +109,15 @@ export function documentEditorReducer(state, action) {
     }
 
     case DOCUMENT_ACTIONS.SET_DOCUMENT_ID:
+      if (state.documentId === action.payload) {
+        return state;
+      }
       return {
         ...state,
         documentId: action.payload,
-        content: null,
-        plainText: '',
-        title: 'Untitled Document',
+        content: state.documentId ? null : (state.content || DEFAULT_DOCUMENT_AST),
+        plainText: state.documentId ? '' : state.plainText,
+        title: state.title || 'Untitled Document',
         activeCommentThreadId: null,
         isDirty: false,
         saveStatus: SAVE_STATUS.IDLE,

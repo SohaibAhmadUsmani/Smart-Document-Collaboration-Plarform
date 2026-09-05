@@ -16,6 +16,7 @@ import { SlashCommandMenu } from './SlashCommandMenu.jsx';
 import { BubbleFloatingMenu } from './BubbleFloatingMenu.jsx';
 import { TableCellMenu } from './TableCellMenu.jsx';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal.jsx';
+import { ShareDocumentModal } from './ShareDocumentModal.jsx';
 import { CommentsPanel } from '../../comments/components/CommentsPanel.jsx';
 import {
   VersionHistoryDrawer,
@@ -30,9 +31,17 @@ import { usePresencePosition } from '../../collaboration/hooks/usePresencePositi
 import { getCurrentUserId } from '../../collaboration/services/socketClient.js';
 import { ActiveUsers } from '../../collaboration/components/ActiveUsers.jsx';
 import { ConflictResolutionModal } from './ConflictResolutionModal.jsx';
-import { apiGetDocument, apiAddAttachment, apiCreateDocument } from '../services/documentApi.js';
-import { MOCK_INITIAL_DOCUMENT } from '../services/mockData.js';
+import { useNavigate } from 'react-router-dom';
+import { apiGetDocument, apiAddAttachment, apiCreateDocument, apiUpdateDocumentMetadata } from '../services/documentApi.js';
+import { workspaceApi } from '../../workspaces/api/workspaceApi.js';
 import { SAVE_STATUS } from '../types/document.js';
+import '../editor.css';
+
+const EMPTY_DOCUMENT = {
+  title: 'Untitled Document',
+  content: { type: 'doc', content: [{ type: 'paragraph' }] },
+  plainText: '',
+};
 
 const PRIMARY_LIVE_SEED_ID = '66cc00000000000000000001';
 
@@ -46,7 +55,15 @@ const PRIMARY_LIVE_SEED_ID = '66cc00000000000000000001';
  * Main editor orchestration container jo state, TipTap instance, autosave,
  * 409 version conflict modal, headers, toolbars, aur sidebar ko aapas mein bind karta hai.
  */
-function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
+function EditorCanvasInner({
+  documentId: propDocumentId,
+  onDocumentArchived,
+  onDocumentDuplicated,
+  workspaceId: propWorkspaceId,
+  folderId: propFolderId,
+}) {
+  const navigate = useNavigate();
+  const [workspaceName, setWorkspaceName] = useState('My Workspace');
   const {
     state,
     setDocument,
@@ -58,12 +75,30 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     setActiveCommentThread,
   } = useDocumentEditor();
   const { editorRef, isReady, executeCommand, editorInstance } = useTipTapEditor({
-    initialContent: state.content || MOCK_INITIAL_DOCUMENT.content,
+    initialContent: state.content || EMPTY_DOCUMENT.content,
   });
+
+  // Keep a stable ref to live editor instance to prevent stale closure reads during async operations
+  const editorInstanceRef = useRef(editorInstance);
+  useEffect(() => {
+    editorInstanceRef.current = editorInstance;
+  }, [editorInstance]);
+
+  // Auto-focus editor on new document so user can immediately type with blinking cursor
+  useEffect(() => {
+    if (!propDocumentId && isReady && editorInstance && !editorInstance.isFocused) {
+      const timer = setTimeout(() => {
+        try {
+          editorInstance.chain().focus('end').run();
+        } catch (_) {}
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [propDocumentId, isReady, editorInstance]);
 
   // Real-time collaboration: mirror this document's content over Socket.IO.
   // Persistence remains with the existing autosave hook below.
-  const collaborationDocId = state.documentId || PRIMARY_LIVE_SEED_ID;
+  const collaborationDocId = state.documentId || null;
   const {
     activeUsers,
     presenceCount,
@@ -93,6 +128,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
 
   // History & Search UI State (Owner: Aiman)
@@ -113,6 +149,8 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
 
   // Notification navigation state
   const pendingNavigationCommentIdRef = useRef(null);
+  const lastLoadedDocIdRef = useRef(null);
+  const isCreatingDocRef = useRef(false);
 
   // Focus a comment by its ID in the editor
   const focusCommentById = useCallback((commentId) => {
@@ -167,32 +205,155 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     setDocumentId(documentId);
   }, [state.documentId, setDocumentId, focusCommentById]);
 
-  // 1. Initialize & Fetch live MongoDB Atlas document
+  // 1. Initialize & Fetch live MongoDB Atlas document, or create a new document in the user's active workspace
   useEffect(() => {
     let isMounted = true;
-    const targetDocId = state.documentId || PRIMARY_LIVE_SEED_ID;
 
-    setIsLoading(true);
-    apiGetDocument(targetDocId)
-      .then((doc) => {
-        if (isMounted && doc) {
-          setDocument(doc);
+    async function initializeDocument() {
+      // Case A: A specific documentId was provided via route/prop
+      if (propDocumentId) {
+        if (propDocumentId === lastLoadedDocIdRef.current) {
+          return;
         }
-      })
-      .catch((err) => {
-        console.warn('[DocSync Notice]: Loading fallback template document:', err.message);
-        if (isMounted && !state.content) {
-          setDocument(MOCK_INITIAL_DOCUMENT);
+        setIsLoading(true);
+        lastLoadedDocIdRef.current = propDocumentId;
+
+        try {
+          const doc = await apiGetDocument(propDocumentId);
+          if (isMounted && doc) {
+            setDocument(doc);
+            if (doc.workspaceId) {
+              try {
+                const wsRes = await workspaceApi.get(doc.workspaceId);
+                const wsData = wsRes?.workspace || wsRes?.data?.workspace || wsRes?.data?.data || wsRes?.data || wsRes;
+                if (isMounted && wsData?.name) {
+                  setWorkspaceName(wsData.name);
+                }
+              } catch (_) {}
+            }
+          }
+        } catch (err) {
+          console.warn('[DocSync Notice]: Loading fallback template document:', err.message);
+          if (isMounted && !state.content) {
+            setDocument(EMPTY_DOCUMENT);
+          }
+        } finally {
+          if (isMounted) setIsLoading(false);
         }
-      })
-      .finally(() => {
+        return;
+      }
+
+      // Case B: No documentId provided (new / untitled document).
+      // Guard against concurrent creation or re-running when a document is already loaded.
+      if (isCreatingDocRef.current || (lastLoadedDocIdRef.current && !propDocumentId)) {
+        return;
+      }
+
+      isCreatingDocRef.current = true;
+      // Do NOT set isLoading(true) for new documents — canvas is ready immediately for typing!
+
+      try {
+        let targetWorkspaceId = propWorkspaceId || localStorage.getItem('activeWorkspaceId');
+        if (targetWorkspaceId === 'undefined' || targetWorkspaceId === 'null') {
+          targetWorkspaceId = null;
+        }
+        let targetWorkspaceName = 'My Workspace';
+
+        if (!targetWorkspaceId) {
+          try {
+            const listRes = await workspaceApi.list();
+            const list = listRes?.workspaces || listRes?.data?.workspaces || (Array.isArray(listRes) ? listRes : []);
+            if (Array.isArray(list) && list.length > 0) {
+              targetWorkspaceId = list[0]._id || list[0].id;
+              targetWorkspaceName = list[0].name || targetWorkspaceName;
+              localStorage.setItem('activeWorkspaceId', targetWorkspaceId);
+            } else {
+              try {
+                const createdWs = await workspaceApi.create({ name: 'My Workspace' });
+                const wsObj = createdWs?.workspace || createdWs;
+                if (wsObj?._id || wsObj?.id) {
+                  targetWorkspaceId = wsObj._id || wsObj.id;
+                  targetWorkspaceName = wsObj.name || targetWorkspaceName;
+                  localStorage.setItem('activeWorkspaceId', targetWorkspaceId);
+                }
+              } catch (_) {}
+            }
+          } catch (_) {}
+        } else {
+          try {
+            const wsRes = await workspaceApi.get(targetWorkspaceId);
+            const wsData = wsRes?.workspace || wsRes?.data?.workspace || wsRes?.data?.data || wsRes?.data || wsRes;
+            if (wsData?.name) targetWorkspaceName = wsData.name;
+          } catch (_) {}
+        }
+
+        if (isMounted) setWorkspaceName(targetWorkspaceName);
+
+        const resolvedWorkspaceId = targetWorkspaceId || PRIMARY_LIVE_SEED_ID;
+
+        // Check live editor ref to see if user has already typed before the creation request finishes
+        const liveEditorBefore = editorInstanceRef.current;
+        const initialEditorContent = liveEditorBefore?.getJSON();
+        const initialText = liveEditorBefore?.getText();
+        const hasInitialEdits = Boolean(initialText && initialText.trim().length > 0);
+
+        const newDoc = await apiCreateDocument({
+          workspaceId: resolvedWorkspaceId,
+          folderId: propFolderId || null,
+          title: 'Untitled Document',
+          content: hasInitialEdits ? initialEditorContent : EMPTY_DOCUMENT.content,
+          plainText: hasInitialEdits ? initialText : '',
+        });
+
+        if (isMounted && newDoc) {
+          const docId = newDoc._id || newDoc.id;
+          lastLoadedDocIdRef.current = docId;
+
+          // Preserve any latest user keystrokes from live editor ref
+          const liveEditorAfter = editorInstanceRef.current;
+          const latestEditorContent = liveEditorAfter?.getJSON();
+          const latestText = liveEditorAfter?.getText();
+          const isDirty = Boolean(latestText && latestText.trim().length > 0);
+
+          const finalContent = isDirty ? latestEditorContent : (newDoc.content || EMPTY_DOCUMENT.content);
+          const finalPlainText = isDirty ? latestText : (newDoc.plainText || '');
+
+          setDocument({
+            ...newDoc,
+            content: finalContent,
+            plainText: finalPlainText,
+          });
+
+          if (isDirty && docId) {
+            apiAutosaveDocument(docId, {
+              content: finalContent,
+              plainText: finalPlainText,
+              title: newDoc.title || 'Untitled Document',
+              baseVersion: 1,
+            }).catch(() => {});
+          }
+
+          if (docId) {
+            window.history.replaceState(null, '', `/editor/${docId}`);
+          }
+        }
+      } catch (createErr) {
+        console.warn('[DocSync Notice]: Creating fallback template:', createErr);
+        if (isMounted) {
+          setDocument(EMPTY_DOCUMENT);
+        }
+      } finally {
+        isCreatingDocRef.current = false;
         if (isMounted) setIsLoading(false);
-      });
+      }
+    }
+
+    initializeDocument();
 
     return () => {
       isMounted = false;
     };
-  }, [state.documentId]);
+  }, [propDocumentId, propWorkspaceId, propFolderId, setDocument]);
 
   // Focus pending comment after document loads (from notification navigation)
   useEffect(() => {
@@ -205,12 +366,12 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     }
   }, [isReady, editorInstance, state.documentId, focusCommentById]);
 
-  // 2. Autosave hook with bounded offline queue and OCC 409 conflict detection
-  // [Issue #14]: Trigger interactive conflict resolution modal instead of silently dropping user changes
+  // 2. Autosave hook with real-time sync, title persistence, and OCC 409 conflict detection
   const { status: saveStatus, lastSavedAt, error: saveError, saveNow } = useAutosave({
     documentId: state.documentId || PRIMARY_LIVE_SEED_ID,
     content: state.content,
     plainText: state.plainText,
+    title: state.title,
     currentVersion: state.version || 1,
     enabled: !state.isReadOnly,
     debounceMs: 1500,
@@ -219,9 +380,42 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       setConflict(conflictData);
     },
     onCrossTabSync: (syncData) => {
-      console.log('[DocSync Cross-Tab Sync Notice]:', syncData);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[DocSync Cross-Tab Sync Notice]:', syncData);
+      }
     },
   });
+
+  // Handle title rename with instant server persistence
+  const handleTitleChange = async (newTitle) => {
+    updateTitle(newTitle);
+    const docId = state.documentId;
+    if (docId) {
+      try {
+        await apiUpdateDocumentMetadata(docId, { title: newTitle });
+      } catch (err) {
+        console.error('Failed to persist document title to server:', err);
+      }
+    }
+  };
+
+  // Handle Publish CTA: Flushes content and marks document published in MongoDB
+  const handlePublish = async () => {
+    const docId = state.documentId;
+    if (!docId) return;
+    try {
+      // 1. Force flush latest rich-text content
+      await saveNow();
+      // 2. Persist metadata with isPublished: true
+      await apiUpdateDocumentMetadata(docId, {
+        title: state.title || 'Untitled Document',
+        isPublished: true,
+      });
+    } catch (err) {
+      console.error('Failed to publish document:', err);
+      throw err;
+    }
+  };
 
   // 3. Handle conflict resolution action
   const handleResolveConflict = (resolutionPayload) => {
@@ -240,8 +434,8 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
     const characters = text.length;
     return {
-      words: words || MOCK_INITIAL_DOCUMENT.wordCount,
-      characters: characters || MOCK_INITIAL_DOCUMENT.characterCount,
+      words: words || 0,
+      characters: characters || 0,
     };
   }, [state.plainText]);
 
@@ -406,8 +600,16 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       await apiAddAttachment(state.documentId, fakeAttachment);
       addAttachment(fakeAttachment);
       const urlToUse = previewUrl || (file.type.startsWith('image/') ? URL.createObjectURL(file) : null);
-      if (urlToUse) {
+      if (file.type.startsWith('image/') && urlToUse) {
         executeCommand('setImage', { src: urlToUse });
+      } else {
+        executeCommand('insertAttachment', {
+          fileId: fakeAttachment.fileId,
+          filename: fakeAttachment.fileName,
+          url: fakeAttachment.downloadUrl,
+          fileSize: fakeAttachment.fileSize,
+          mimeType: fakeAttachment.mimeType,
+        });
       }
     } catch (err) {
       console.error('Failed to link file drop:', err);
@@ -418,7 +620,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
     <DocumentNavigationProvider value={{ navigateToDocument, currentDocumentId: state.documentId }}>
     <div
       data-editor-container="true"
-      className="flex flex-col min-h-screen bg-slate-100/75 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased"
+      className="flex flex-col h-screen overflow-hidden bg-slate-100/75 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased"
     >
       {/* 1. Top Global Navigation Header (Hidden in Zen Mode) */}
       {!isZenMode && (
@@ -431,12 +633,14 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       {/* 2. Document Sub-Header & Breadcrumb Bar */}
       {!isZenMode && (
         <DocSubHeader
-          documentTitle={state.title || MOCK_INITIAL_DOCUMENT.title}
-          workspaceName={state.workspaceName || MOCK_INITIAL_DOCUMENT.workspaceName}
+          documentTitle={state.title || EMPTY_DOCUMENT.title}
+          workspaceName={workspaceName || state.workspaceName || 'My Workspace'}
           saveStatus={saveStatus}
           lastSavedAt={lastSavedAt}
-          onTitleChange={(newTitle) => updateTitle(newTitle)}
-          onShareClick={() => alert('Workspace sharing modal opened: manage access and link permissions.')}
+          activeUsers={activeUsers}
+          onTitleChange={handleTitleChange}
+          onShareClick={() => setIsShareOpen(true)}
+          onInviteClick={() => setIsShareOpen(true)}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
           onOpenHistory={() => setIsHistoryOpen(true)}
         />
@@ -475,7 +679,8 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
           {/* Centered Paper Document Sheet */}
           <PaperDocumentSheet
             editorRef={editorRef}
-            isReady={isReady && !isLoading}
+            editorInstance={editorInstance}
+            isReady={!propDocumentId ? isReady : (isReady && (!isLoading || !!state.content))}
             isReadOnly={state.isReadOnly}
             onFileDrop={handleFileDrop}
           />
@@ -505,6 +710,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
           <div className="w-88 flex-shrink-0 flex flex-col border-l border-slate-200 bg-white sticky top-12 h-[calc(100vh-48px)] overflow-hidden select-none">
             <CommentsPanel
               documentId={state.documentId}
+              workspaceId={state.workspaceId}
               createAnchorPayload={getAnchorPayload}
               onCommentCreated={handleCommentCreated}
               onCommentClick={handleCommentClick}
@@ -520,9 +726,9 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
         <BottomStatusBar
           wordCount={metrics.words}
           characterCount={metrics.characters}
-          lastEditedBy={MOCK_INITIAL_DOCUMENT.lastEditedBy}
-          lastEditedAt={MOCK_INITIAL_DOCUMENT.lastEditedAt}
-          folderLocation={MOCK_INITIAL_DOCUMENT.folderName}
+          lastEditedBy={state.lastEditedBy || 'Unknown'}
+          lastEditedAt={state.lastEditedAt || 'Never'}
+          folderLocation={state.folderName || 'Root'}
         />
       )}
 
@@ -530,6 +736,15 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      {/* 5b. Share Document & Access Control Modal */}
+      <ShareDocumentModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        documentTitle={state.title || EMPTY_DOCUMENT.title}
+        documentId={state.documentId}
+        workspaceName={state.workspaceName || 'My Workspace'}
       />
 
       {/* 6. Version History Drawer Overlay (Owner: Aiman) */}
@@ -587,7 +802,7 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
                 });
               }
             } catch (err) {
-              alert(`Restore failed: ${err.message}`);
+              console.warn('[DocSync Notice]: Restore failed:', err.message);
             }
           }}
         />
@@ -687,13 +902,30 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
                 resolution: 'keep_server',
                 serverDocument: state.conflictData?.serverDocument,
               });
-              alert(`Local copy saved as new document: "${newDoc.title || 'Untitled'}"`);
+              // Document saved successfully as new copy
+              // Naya document copy ke tor par mehfooz ho gaya
+              console.log(`[DocSync Success]: Local copy saved as "${newDoc.title || 'Untitled'}"`);
             } catch (err) {
               console.error('Failed to create local copy:', err);
             }
           }
         }}
         onClose={() => setConflict(null)}
+      />
+
+      {/* 10. Document Sharing & Collaborator Invitation Modal */}
+      <ShareDocumentModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        documentTitle={state.title || EMPTY_DOCUMENT.title}
+        documentId={state.documentId || PRIMARY_LIVE_SEED_ID}
+        workspaceName={state.workspaceName || 'My Workspace'}
+      />
+
+      {/* 11. Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
     </div>
     </DocumentNavigationProvider>
@@ -704,17 +936,22 @@ function EditorCanvasInner({ onDocumentArchived, onDocumentDuplicated }) {
  * Public Root EditorCanvas component wrapping DocumentEditorProvider.
  */
 export function EditorCanvas({
-  documentId = PRIMARY_LIVE_SEED_ID,
+  documentId,
+  workspaceId,
+  folderId,
   initialReadOnly = false,
   onDocumentArchived,
   onDocumentDuplicated,
 }) {
   return (
-    <DocumentEditorProvider initialDocumentId={documentId} initialReadOnly={initialReadOnly}>
+    <DocumentEditorProvider initialDocumentId={documentId || null} initialReadOnly={initialReadOnly}>
       {/* CollaborationProvider supplies the shared Socket.IO connection used by
           useDocumentCollaboration for real-time editing/presence. */}
       <CollaborationProvider>
         <EditorCanvasInner
+          documentId={documentId}
+          workspaceId={workspaceId}
+          folderId={folderId}
           onDocumentArchived={onDocumentArchived}
           onDocumentDuplicated={onDocumentDuplicated}
         />

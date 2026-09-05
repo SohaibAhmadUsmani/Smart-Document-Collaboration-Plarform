@@ -24,6 +24,7 @@ import { AttachmentNode } from './nodes/AttachmentNode.js';
 import { CodeBlockNode } from './nodes/CodeBlockNode.js';
 import { MentionNode } from './nodes/MentionNode.js';
 import { CommentMark } from './marks/CommentMark.js';
+import { FontFamilyMark } from './marks/FontFamilyMark.js';
 
 /**
  * Checks whether a given URL is safe to embed as a hyperlink.
@@ -121,5 +122,6 @@ export function getEditorExtensions(options = {}) {
     CodeBlockNode,
     MentionNode,
     CommentMark,
+    FontFamilyMark,
   ];
 }

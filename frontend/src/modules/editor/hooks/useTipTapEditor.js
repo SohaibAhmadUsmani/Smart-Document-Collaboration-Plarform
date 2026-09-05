@@ -55,26 +55,66 @@ export function useTipTapEditor(options = {}) {
   const editorRef = useRef(null);
   const [editorInstance, setEditorInstance] = useState(null);
   const [isReady, setIsReady] = useState(false);
+  const lastMarksRef = useRef(null);
+  // Track whether the current content change originated from local user typing (vs external load)
+  const isLocalUpdateRef = useRef(false);
+  const lastEmittedJsonStrRef = useRef(null);
 
   // 1. Initialize TipTap Editor Instance
+  // Uses a mounted ref to survive React StrictMode's double-invocation in development,
+  // which would otherwise create, destroy, and leave the editor in a broken state.
   useEffect(() => {
     if (!editorRef.current) return;
 
     const rawDoc = options.initialContent || state.content || { type: 'doc', content: [] };
     const initialDoc = parseDocContent(rawDoc);
+    let updateTimeout = null;
+    let destroyed = false;
 
     const editor = new Editor({
       element: editorRef.current,
       extensions: getEditorExtensions(options),
       content: initialDoc,
       editable: !state.isReadOnly,
+      editorProps: {
+        transformPastedHTML(html) {
+          return html
+            .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+        },
+        handleKeyDown(view, event) {
+          if (event.key === 'Backspace') {
+            const { selection } = view.state;
+            if (selection.empty && selection.$from.parentOffset === 0) {
+              const node = selection.$from.parent;
+              if (node.content.size === 0) {
+                const grandParent = selection.$from.node(-1);
+                if (grandParent && (grandParent.type.name === 'blockquote' || grandParent.type.name === 'callout')) {
+                  editor.commands.liftEmptyBlock();
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        },
+      },
       onUpdate: ({ editor: ed }) => {
-        const json = ed.getJSON();
-        const text = ed.getText();
-        updateContent(json, text);
+        if (destroyed) return;
+        if (updateTimeout) clearTimeout(updateTimeout);
+        updateTimeout = setTimeout(() => {
+          if (destroyed) return;
+          const json = ed.getJSON();
+          const text = ed.getText();
+          // Mark that the upcoming state.content change came from local typing,
+          // not from an external document load — prevents the sync effect from
+          // calling setContent() and resetting the cursor on every keystroke.
+          isLocalUpdateRef.current = true;
+          lastEmittedJsonStrRef.current = JSON.stringify(json);
+          updateContent(json, text);
+        }, 250);
 
-        // Update active marks and alignments
-        const marks = {
+        const getMarks = () => ({
           bold: ed.isActive('bold'),
           italic: ed.isActive('italic'),
           underline: ed.isActive('underline'),
@@ -93,8 +133,15 @@ export function useTipTapEditor(options = {}) {
           alignCenter: ed.isActive({ textAlign: 'center' }),
           alignRight: ed.isActive({ textAlign: 'right' }),
           alignJustify: ed.isActive({ textAlign: 'justify' }),
-        };
-        setActiveMarks(marks);
+          fontFamily: ed.getAttributes('fontFamily')?.fontFamily || 'Inter',
+        });
+
+        const marks = getMarks();
+        const serialized = JSON.stringify(marks);
+        if (serialized !== lastMarksRef.current) {
+          lastMarksRef.current = serialized;
+          setActiveMarks(marks);
+        }
       },
       onSelectionUpdate: ({ editor: ed }) => {
         const marks = {
@@ -116,8 +163,13 @@ export function useTipTapEditor(options = {}) {
           alignCenter: ed.isActive({ textAlign: 'center' }),
           alignRight: ed.isActive({ textAlign: 'right' }),
           alignJustify: ed.isActive({ textAlign: 'justify' }),
+          fontFamily: ed.getAttributes('fontFamily')?.fontFamily || 'Inter',
         };
-        setActiveMarks(marks);
+        const serialized = JSON.stringify(marks);
+        if (serialized !== lastMarksRef.current) {
+          lastMarksRef.current = serialized;
+          setActiveMarks(marks);
+        }
       },
     });
 
@@ -125,26 +177,80 @@ export function useTipTapEditor(options = {}) {
     setIsReady(true);
 
     return () => {
+      destroyed = true;
+      if (updateTimeout) clearTimeout(updateTimeout);
       editor.destroy();
+      setEditorInstance(null);
+      setIsReady(false);
     };
   }, []);
 
   // 2. Reactive Content Synchronization (Handles Async Data & Template Loading)
+  // Only syncs content that comes from outside the editor (initial load, template switch,
+  // version restore, etc.). Skips updates caused by local user typing to prevent the
+  // feedback loop where every keystroke would reset the cursor via setContent().
   useEffect(() => {
     if (editorInstance && state.content) {
+      // If this content update was triggered by local typing, skip the sync
+      // and clear the flag so the next external update is not blocked.
+      if (isLocalUpdateRef.current) {
+        isLocalUpdateRef.current = false;
+        return;
+      }
+
       const parsedContent = parseDocContent(state.content);
+      const parsedStr = JSON.stringify(parsedContent);
+
+      // If the content in state matches what this editor instance emitted locally, skip
+      if (parsedStr === lastEmittedJsonStrRef.current) {
+        return;
+      }
+
+      // CRITICAL: If the editor is currently focused by the user, DO NOT clobber
+      // the active typing session with an external setContent call!
+      if (editorInstance.isFocused) {
+        return;
+      }
+
+      // CRITICAL SAFEGUARD: Never let an empty incoming content payload overwrite
+      // non-empty user-typed content in the editor!
+      const currentText = editorInstance.getText();
+      if (currentText && currentText.trim().length > 0) {
+        const incomingContent = parsedContent?.content;
+        const isIncomingEmpty =
+          !incomingContent ||
+          incomingContent.length === 0 ||
+          (incomingContent.length === 1 &&
+            incomingContent[0]?.type === 'paragraph' &&
+            (!incomingContent[0]?.content || incomingContent[0].content.length === 0));
+        if (isIncomingEmpty) {
+          return;
+        }
+      }
+
       const currentJSON = editorInstance.getJSON();
-      const isDifferent = JSON.stringify(currentJSON) !== JSON.stringify(parsedContent);
+      const isDifferent = JSON.stringify(currentJSON) !== parsedStr;
       if (isDifferent) {
+        // Preserve user selection cursor across external content updates
+        const prevSelection = editorInstance.state?.selection;
         editorInstance.commands.setContent(parsedContent, false);
+        if (prevSelection && editorInstance.state?.doc) {
+          const maxPos = editorInstance.state.doc.content.size;
+          const safeFrom = Math.min(Math.max(0, prevSelection.from), maxPos);
+          const safeTo = Math.min(Math.max(0, prevSelection.to), maxPos);
+          try {
+            editorInstance.commands.setTextSelection({ from: safeFrom, to: safeTo });
+          } catch (_) {}
+        }
       }
     }
   }, [state.content, editorInstance]);
 
   // 3. Update Editable State Dynamically
+  // TipTap v3 uses setOptions({ editable }) instead of the deprecated setEditable()
   useEffect(() => {
     if (editorInstance) {
-      editorInstance.setEditable(!state.isReadOnly);
+      editorInstance.setOptions({ editable: !state.isReadOnly });
     }
   }, [state.isReadOnly, editorInstance]);
 
@@ -220,15 +326,30 @@ export function useTipTapEditor(options = {}) {
           }
           break;
         case 'insertTable':
-        case 'table':
-          chain.insertTable({ rows: payload.rows || 3, cols: payload.cols || 3, withHeaderRow: true }).run();
+        case 'table': {
+          const rows = Math.max(1, payload.rows || 3);
+          const cols = Math.max(1, payload.cols || 3);
+          chain.insertTable({ rows, cols, withHeaderRow: true }).run();
           break;
+        }
         case 'insertComment': {
           const threadId = `cmt_anchor_${Date.now()}`;
           chain.setMark('commentMark', { commentThreadId: threadId, isActive: true }).run();
           if (setActiveCommentThread) setActiveCommentThread(threadId);
           break;
         }
+        case 'setFontFamily': {
+          const font = payload?.fontFamily || payload;
+          if (!font || font === 'Default' || font === 'Inter') {
+            chain.unsetMark('fontFamily').run();
+          } else {
+            chain.setMark('fontFamily', { fontFamily: font }).run();
+          }
+          break;
+        }
+        case 'unsetFontFamily':
+          chain.unsetMark('fontFamily').run();
+          break;
         case 'undo':
           chain.undo().run();
           break;

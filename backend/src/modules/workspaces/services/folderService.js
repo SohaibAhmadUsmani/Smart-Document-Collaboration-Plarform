@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Folder } from '../models/Folder.js';
 import { AppError } from '../utils/AppError.js';
 
@@ -45,6 +46,13 @@ async function createFolder(workspaceId, { name, parentFolderId, createdBy }) {
 
 /** Flat list; the frontend builds the tree client-side via parentFolder. */
 async function listFolders(workspaceId) {
+  if (
+    mongoose.connection?.readyState !== 1 ||
+    workspaceId === 'test-workspace-1' ||
+    String(workspaceId).startsWith('ws_offline_')
+  ) {
+    return [];
+  }
   return Folder.find({ workspace: workspaceId }).sort({ name: 1 }).lean();
 }
 

@@ -101,6 +101,19 @@ const SLASH_COMMANDS = [
       if (url) editor.chain().focus().setImage({ src: url }).run();
     },
   },
+  {
+    id: 'attachment',
+    title: 'File Attachment',
+    description: 'Embed a downloadable file',
+    icon: Paperclip,
+    command: (editor) => {
+      const url = window.prompt('Enter file URL:');
+      const filename = window.prompt('Enter filename:');
+      if (url && filename) {
+        editor.chain().focus().insertAttachment({ url, filename }).run();
+      }
+    },
+  },
 ];
 
 /**

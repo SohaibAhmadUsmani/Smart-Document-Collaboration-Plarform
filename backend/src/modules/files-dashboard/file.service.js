@@ -1,6 +1,8 @@
+import mongoose from 'mongoose';
 import { FileModel } from './file.model.js';
 import { buildDownloadUrl, deleteFromDisk } from './file.storage.js';
 import { logActivity } from './activityLog.service.js';
+import { isMongoConnectivityError } from '../../config/database.js';
 
 export async function createFileRecord({ multerFile, workspaceId, folderId, documentId, userId }) {
   const file = await FileModel.create({
@@ -58,11 +60,19 @@ export async function duplicateFile(fileId, targetFolderId, userId) {
   return copy;
 }
 export async function listFiles({ workspaceId, folderId }) {
-  const query = { workspaceId, isDeleted: false };
-  if (folderId !== undefined) {
-    query.folderId = folderId || null;
+  if (mongoose.connection?.readyState !== 1) {
+    return [];
   }
-  return FileModel.find(query).sort({ updatedAt: -1 }).lean().exec();
+  try {
+    const query = { workspaceId, isDeleted: false };
+    if (folderId !== undefined) {
+      query.folderId = folderId || null;
+    }
+    return await FileModel.find(query).sort({ updatedAt: -1 }).lean().exec();
+  } catch (err) {
+    if (isMongoConnectivityError(err)) return [];
+    throw err;
+  }
 }
 
 export async function getFileById(fileId) {

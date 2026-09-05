@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import * as notificationService from '../services/notificationService.js';
 
 function getUserId(req) {
@@ -10,6 +11,12 @@ function getUserId(req) {
  */
 export async function getUserNotificationsHandler(req, res, next) {
   try {
+    if (mongoose.connection?.readyState !== 1) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
+    }
     const userId = getUserId(req);
     const notifications = await notificationService.getUserNotifications(userId);
 
@@ -28,6 +35,12 @@ export async function getUserNotificationsHandler(req, res, next) {
  */
 export async function getUnreadNotificationsHandler(req, res, next) {
   try {
+    if (mongoose.connection?.readyState !== 1) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
+    }
     const userId = getUserId(req);
     const notifications = await notificationService.getUnreadNotifications(userId);
 

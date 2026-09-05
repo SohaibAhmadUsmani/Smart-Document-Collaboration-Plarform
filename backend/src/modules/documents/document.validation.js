@@ -180,6 +180,22 @@ export function validateUpdateMetadata(req, res, next) {
     });
   }
 
+  if (req.body.workspaceId !== undefined && typeof req.body.workspaceId !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Workspace ID must be a string if provided.',
+    });
+  }
+
+  if (req.body.isPublished !== undefined && typeof req.body.isPublished !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'isPublished must be a boolean if provided.',
+    });
+  }
+
   next();
 }
 
@@ -378,19 +394,38 @@ export function validateBatchOperation(req, res, next) {
     });
   }
 
-  if (action === 'move' && (!payload || typeof payload.folderId === 'undefined')) {
+  // Validate move payload: service reads `targetFolderId` (also accept `folderId` for compatibility)
+  if (action === 'move' && (!payload || (typeof payload.targetFolderId === 'undefined' && typeof payload.folderId === 'undefined'))) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Batch move action requires a payload with folderId.',
+      message: 'Batch move action requires a payload with targetFolderId (or folderId).',
     });
   }
+  // Normalize: if client sent folderId but not targetFolderId, copy it over for the service
+  if (action === 'move' && payload && typeof payload.targetFolderId === 'undefined' && typeof payload.folderId !== 'undefined') {
+    payload.targetFolderId = payload.folderId;
+  }
 
-  if (action === 'tag' && (!payload || !Array.isArray(payload.tags))) {
+  // Validate tag payload: service reads `tagsToAdd` and/or `tagsToRemove` (also accept `tags` for compatibility)
+  if (action === 'tag' && payload) {
+    // Accept both formats: { tags: [...] } or { tagsToAdd: [...], tagsToRemove: [...] }
+    if (!Array.isArray(payload.tagsToAdd) && !Array.isArray(payload.tagsToRemove) && !Array.isArray(payload.tags)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Batch tag action requires a payload with tagsToAdd/tagsToRemove arrays (or tags array).',
+      });
+    }
+    // Normalize: if client sent `tags` but not `tagsToAdd`, treat tags as tagsToAdd for the service
+    if (Array.isArray(payload.tags) && !Array.isArray(payload.tagsToAdd)) {
+      payload.tagsToAdd = payload.tags;
+    }
+  } else if (action === 'tag' && !payload) {
     return res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Batch tag action requires a payload with tags array.',
+      message: 'Batch tag action requires a payload with tagsToAdd/tagsToRemove arrays.',
     });
   }
 

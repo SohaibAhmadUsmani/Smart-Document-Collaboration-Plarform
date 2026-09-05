@@ -12,9 +12,11 @@
  * aur RESTful JSON responses (200, 201, 400, 404, 409 Conflict) return karna iski zimadari hai.
  */
 
+import mongoose from 'mongoose';
 import * as documentService from './document.service.js';
 import * as batchService from './documentBatch.service.js';
 import * as astSearchService from './documentAstSearch.service.js';
+import { permissionService } from '../workspaces/services/permissionService.js';
 
 /**
  * Extracts authenticated user ID from Express request.
@@ -113,6 +115,17 @@ export async function listDocumentsHandler(req, res, next) {
       });
     }
 
+    if (mongoose.connection?.readyState === 1 && mongoose.isValidObjectId(workspaceId) && mongoose.isValidObjectId(userId)) {
+      const hasAccess = await permissionService.canUserPerform(userId, workspaceId, 'view');
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden',
+          message: 'Access denied. You do not have view access to this workspace.',
+        });
+      }
+    }
+
     const result = await documentService.listDocuments(
       workspaceId,
       {
@@ -121,9 +134,9 @@ export async function listDocumentsHandler(req, res, next) {
         favorited,
         search,
         sortBy,
-        isArchived: isArchived === 'true',
-        page: page ? parseInt(page, 10) : 1,
-        limit: limit ? parseInt(limit, 10) : 50,
+        isArchived: isArchived === 'true' || isArchived === '1',
+        page: Math.max(1, parseInt(page, 10) || 1),
+        limit: Math.min(100, Math.max(1, parseInt(limit, 10) || 50)),
       },
       userId
     );
@@ -278,6 +291,15 @@ export async function updateTagsHandler(req, res, next) {
     const { id } = req.params;
     const { tags } = req.body;
     const userId = getUserId(req);
+
+    if (!Array.isArray(tags) || tags.length > 20 || tags.some((t) => typeof t !== 'string' || t.length > 30)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Tags must be an array of up to 20 strings, each at most 30 characters.',
+      });
+    }
+
     const updated = await documentService.updateDocumentTags(id, tags, userId);
 
     if (!updated) {
@@ -319,6 +341,18 @@ export async function getWorkspaceTagsHandler(req, res, next) {
         error: 'Validation Error',
         message: 'Query parameter "workspaceId" is required.',
       });
+    }
+
+    const userId = getUserId(req);
+    if (mongoose.connection?.readyState === 1 && mongoose.isValidObjectId(workspaceId) && mongoose.isValidObjectId(userId)) {
+      const hasAccess = await permissionService.canUserPerform(userId, workspaceId, 'view');
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden',
+          message: 'Access denied. You do not have view access to this workspace.',
+        });
+      }
     }
 
     const tags = await documentService.getWorkspaceTags(workspaceId);
@@ -414,11 +448,12 @@ export async function removeAttachmentHandler(req, res, next) {
 export async function astSearchHandler(req, res, next) {
   try {
     const { workspaceId, query, nodeTypes, tags, limit } = req.body;
+    const cappedLimit = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
     const results = await astSearchService.searchContentAst(workspaceId, {
       query,
       nodeTypes,
       tags,
-      limit: limit ? parseInt(limit, 10) : 20,
+      limit: cappedLimit,
     });
 
     return res.status(200).json({
@@ -445,6 +480,23 @@ export async function astSearchHandler(req, res, next) {
 export async function batchOperationsHandler(req, res, next) {
   try {
     const { action, documentIds, payload } = req.body;
+
+    if (!Array.isArray(documentIds) || documentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Field "documentIds" must be a non-empty array of document IDs.',
+      });
+    }
+
+    if (documentIds.length > 100) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Batch operations are limited to a maximum of 100 documents per request.',
+      });
+    }
+
     const userId = getUserId(req);
     const result = await batchService.executeBatchOperation(action, documentIds, payload, userId);
 
@@ -657,6 +709,18 @@ export async function listTrashHandler(req, res, next) {
       });
     }
 
+    const userId = getUserId(req);
+    if (mongoose.connection?.readyState === 1 && mongoose.isValidObjectId(workspaceId) && mongoose.isValidObjectId(userId)) {
+      const hasAccess = await permissionService.canUserPerform(userId, workspaceId, 'view');
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden',
+          message: 'Access denied. You do not have access to this workspace trash.',
+        });
+      }
+    }
+
     const result = await documentService.listTrashDocuments(workspaceId, {
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 50,
@@ -734,12 +798,110 @@ export async function emptyTrashHandler(req, res, next) {
       });
     }
 
+    if (mongoose.connection?.readyState === 1 && mongoose.isValidObjectId(workspaceId) && mongoose.isValidObjectId(userId)) {
+      const hasAccess = await permissionService.canUserPerform(userId, workspaceId, 'manage');
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: 'Forbidden',
+          message: 'Access denied. Only workspace owners can empty trash.',
+        });
+      }
+    }
+
     const result = await documentService.emptyWorkspaceTrash(workspaceId, userId);
 
     return res.status(200).json({
       success: true,
       message: `Trash emptied (${result.deletedCount} documents permanently removed)`,
       deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handles fetching document sharing permissions and collaborator list.
+ */
+export async function getDocumentPermissionsHandler(req, res, next) {
+  try {
+    const { id } = req.params;
+    const permissions = await documentService.getDocumentPermissions(id);
+    return res.status(200).json({
+      success: true,
+      data: permissions,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handles adding or updating a collaborator permission.
+ */
+export async function addDocumentPermissionHandler(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { email, role } = req.body;
+    const userId = getUserId(req);
+
+    if (!email || !role) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Email and role are required.',
+      });
+    }
+
+    const collaborator = await documentService.addOrUpdateDocumentPermission(id, { email, role }, userId);
+    return res.status(200).json({
+      success: true,
+      message: `Invited ${collaborator.email} as ${collaborator.role}.`,
+      data: collaborator,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handles revoking a collaborator's document access.
+ */
+export async function removeDocumentPermissionHandler(req, res, next) {
+  try {
+    const { id, permissionId } = req.params;
+    await documentService.removeDocumentPermission(id, permissionId);
+    return res.status(200).json({
+      success: true,
+      message: 'Collaborator permission revoked successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Handles updating document general sharing mode (private, workspace, anyone_with_link).
+ */
+export async function updateDocumentSharingHandler(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { sharingMode } = req.body;
+
+    if (!sharingMode) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'sharingMode is required.',
+      });
+    }
+
+    const result = await documentService.updateDocumentSharingMode(id, { sharingMode });
+    return res.status(200).json({
+      success: true,
+      message: `Sharing mode updated to '${sharingMode}'.`,
+      data: result,
     });
   } catch (error) {
     next(error);

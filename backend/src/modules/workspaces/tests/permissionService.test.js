@@ -40,3 +40,16 @@ test('a null/missing role satisfies nothing', () => {
 test('unknown action throws instead of silently allowing/denying', () => {
   assert.throws(() => roleSatisfiesAction(WORKSPACE_ROLES.OWNER, 'delete_everything'));
 });
+
+test('isValidObjectId accepts Mongoose ObjectId instances and valid hex strings', async () => {
+  const mongoose = (await import('mongoose')).default;
+  const objectId = new mongoose.Types.ObjectId();
+  assert.equal(permissionService.isValidObjectId(objectId), true);
+  assert.equal(permissionService.isValidObjectId(objectId.toString()), true);
+  assert.equal(permissionService.isValidObjectId('507f1f77bcf86cd799439011'), true);
+  assert.equal(permissionService.isValidObjectId('invalid-id'), false);
+  assert.equal(permissionService.isValidObjectId(12345), false);
+  assert.equal(permissionService.isValidObjectId(null), false);
+  assert.equal(permissionService.isValidObjectId(undefined), false);
+});
+

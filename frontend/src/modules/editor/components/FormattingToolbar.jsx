@@ -33,7 +33,29 @@ import {
   Undo2,
   Redo2,
   Table as TableIcon,
+  Paperclip,
+  Check,
+  Type,
 } from 'lucide-react';
+import { apiUploadFile } from '../services/documentApi';
+
+export const FONT_FAMILIES = [
+  { label: 'Inter', value: 'Inter', family: "'Inter', sans-serif" },
+  { label: 'Roboto', value: 'Roboto', family: "'Roboto', sans-serif" },
+  { label: 'Poppins', value: 'Poppins', family: "'Poppins', sans-serif" },
+  { label: 'Montserrat', value: 'Montserrat', family: "'Montserrat', sans-serif" },
+  { label: 'Open Sans', value: 'Open Sans', family: "'Open Sans', sans-serif" },
+  { label: 'Lato', value: 'Lato', family: "'Lato', sans-serif" },
+  { label: 'Playfair Display', value: 'Playfair Display', family: "'Playfair Display', serif" },
+  { label: 'Merriweather', value: 'Merriweather', family: "'Merriweather', serif" },
+  { label: 'Lora', value: 'Lora', family: "'Lora', serif" },
+  { label: 'Source Serif 4', value: 'Source Serif 4', family: "'Source Serif 4', serif" },
+  { label: 'Fira Code', value: 'Fira Code', family: "'Fira Code', monospace" },
+  { label: 'Courier Prime', value: 'Courier Prime', family: "'Courier Prime', monospace" },
+  { label: 'Oswald', value: 'Oswald', family: "'Oswald', sans-serif" },
+  { label: 'Raleway', value: 'Raleway', family: "'Raleway', sans-serif" },
+  { label: 'Dancing Script', value: 'Dancing Script', family: "'Dancing Script', cursive" },
+];
 
 /**
  * FormattingToolbar Component (DocSync Pro Ribbon).
@@ -55,7 +77,10 @@ export function FormattingToolbar({
   const [styleDropdownOpen, setStyleDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Close dropdown on Escape key or outside click
+  const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
+  const fontDropdownRef = useRef(null);
+
+  // Close style dropdown on Escape key or outside click
   useEffect(() => {
     if (!styleDropdownOpen) return;
     const handleKeyDown = (e) => {
@@ -74,6 +99,25 @@ export function FormattingToolbar({
     };
   }, [styleDropdownOpen]);
 
+  // Close font dropdown on Escape key or outside click
+  useEffect(() => {
+    if (!fontDropdownOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setFontDropdownOpen(false);
+    };
+    const handleClickOutside = (e) => {
+      if (fontDropdownRef.current && !fontDropdownRef.current.contains(e.target)) {
+        setFontDropdownOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [fontDropdownOpen]);
+
   // Dynamically derive current style label based on active cursor selection
   const currentStyle = useMemo(() => {
     if (activeMarks.h1) return 'Heading 1';
@@ -83,11 +127,94 @@ export function FormattingToolbar({
     return 'Normal Text';
   }, [activeMarks]);
 
+  // Dynamically derive current font family
+  const currentFontValue = activeMarks.fontFamily || 'Inter';
+  const currentFont = useMemo(() => {
+    return (
+      FONT_FAMILIES.find((f) => f.value.toLowerCase() === currentFontValue.toLowerCase()) ||
+      FONT_FAMILIES[0]
+    );
+  }, [currentFontValue]);
+
   const handleStyleSelect = (cmd, args) => {
     setStyleDropdownOpen(false);
     if (onCommand) {
       onCommand(cmd, args);
     }
+  };
+
+  const handleFontSelect = (font) => {
+    setFontDropdownOpen(false);
+    if (onCommand) {
+      onCommand('setFontFamily', font.value);
+    }
+  };
+
+  const imageInputRef = useRef(null);
+  const attachmentInputRef = useRef(null);
+  const linkPopoverRef = useRef(null);
+  const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+
+  // Close link popover on Escape key or outside click
+  useEffect(() => {
+    if (!linkPopoverOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setLinkPopoverOpen(false);
+    };
+    const handleClickOutside = (e) => {
+      if (linkPopoverRef.current && !linkPopoverRef.current.contains(e.target)) {
+        setLinkPopoverOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [linkPopoverOpen]);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await apiUploadFile(file);
+      if (res?.downloadUrl && onCommand) {
+        onCommand('setImage', { src: res.downloadUrl });
+      }
+    } catch (err) {
+      console.warn('Failed to upload image:', err);
+    }
+    e.target.value = '';
+  };
+
+  const handleAttachmentUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await apiUploadFile(file);
+      if (res?.downloadUrl && onCommand) {
+        onCommand('insertAttachment', {
+          url: res.downloadUrl,
+          filename: res.fileName || file.name,
+          fileSize: res.fileSize || file.size,
+          mimeType: res.mimeType || file.type,
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to upload attachment:', err);
+    }
+    e.target.value = '';
+  };
+
+  const handleApplyLink = (e) => {
+    e?.preventDefault();
+    if (linkUrl.trim() && onCommand) {
+      onCommand('setLink', { href: linkUrl.trim() });
+    }
+    setLinkUrl('');
+    setLinkPopoverOpen(false);
   };
 
   /**
@@ -176,6 +303,62 @@ export function FormattingToolbar({
             >
               Code Block
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* 1b. Font Family Dropdown (15 Fonts) */}
+      <div className="relative flex-shrink-0" ref={fontDropdownRef}>
+        <button
+          type="button"
+          disabled={isReadOnly}
+          onMouseDown={handlePreventFocusLoss}
+          onClick={() => setFontDropdownOpen((prev) => !prev)}
+          aria-haspopup="listbox"
+          aria-expanded={fontDropdownOpen}
+          aria-label={`Current font: ${currentFont.label}. Click to change font`}
+          title={`Font Family: ${currentFont.label}`}
+          className="h-[34px] px-2.5 flex items-center gap-1.5 rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
+        >
+          <Type className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+          <span className="truncate max-w-[100px] text-left" style={{ fontFamily: currentFont.family }}>
+            {currentFont.label}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+        </button>
+
+        {fontDropdownOpen && (
+          <div
+            role="listbox"
+            aria-label="Font families"
+            className="absolute top-10 left-0 z-50 w-56 max-h-80 overflow-y-auto bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 py-1.5 text-xs text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100 dark:divide-slate-800/60"
+          >
+            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Select Typography (15 Fonts)
+            </div>
+            <div className="py-1">
+              {FONT_FAMILIES.map((font) => {
+                const isSelected = currentFont.value.toLowerCase() === font.value.toLowerCase();
+                return (
+                  <button
+                    key={font.value}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onMouseDown={handlePreventFocusLoss}
+                    onClick={() => handleFontSelect(font)}
+                    className={`w-full text-left px-3.5 py-2 flex items-center justify-between hover:bg-blue-50 dark:hover:bg-slate-800/80 transition-colors text-slate-800 dark:text-slate-200 ${
+                      isSelected ? 'bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold' : ''
+                    }`}
+                  >
+                    <span style={{ fontFamily: font.family }} className="text-sm">
+                      {font.label}
+                    </span>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -407,38 +590,84 @@ export function FormattingToolbar({
 
       {/* 5. Insert Annotations & Media */}
       <div className="flex items-center gap-0.5 flex-shrink-0">
-        <button
-          type="button"
-          disabled={isReadOnly}
-          onMouseDown={handlePreventFocusLoss}
-          onClick={() => {
-            const url = window.prompt('Enter Link URL:');
-            if (url && onCommand) {
-              onCommand('setLink', { href: url });
-            }
-          }}
-          aria-label="Insert Link"
-          title="Insert Link"
-          className="w-[34px] h-[34px] flex items-center justify-center rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-        >
-          <Link2 className="w-4 h-4" />
-        </button>
+        {/* Hidden inputs for image and attachment uploading */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageUpload}
+        />
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          accept=".pdf,.docx,.xlsx,.txt,.zip,.png,.jpg,.jpeg"
+          className="hidden"
+          onChange={handleAttachmentUpload}
+        />
 
+        {/* Link Button with Floating Popover */}
+        <div className="relative" ref={linkPopoverRef}>
+          <button
+            type="button"
+            disabled={isReadOnly}
+            onMouseDown={handlePreventFocusLoss}
+            onClick={() => setLinkPopoverOpen((prev) => !prev)}
+            aria-label="Insert Link"
+            title="Insert Link"
+            className={`w-[34px] h-[34px] flex items-center justify-center rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${
+              linkPopoverOpen ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' : ''
+            }`}
+          >
+            <Link2 className="w-4 h-4" />
+          </button>
+          {linkPopoverOpen && (
+            <form
+              onSubmit={handleApplyLink}
+              className="absolute top-10 left-0 z-50 flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-100"
+            >
+              <input
+                type="url"
+                autoFocus
+                placeholder="https://example.com"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                className="w-48 px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shrink-0 cursor-pointer"
+              >
+                Apply
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Image Upload Button */}
         <button
           type="button"
           disabled={isReadOnly}
           onMouseDown={handlePreventFocusLoss}
-          onClick={() => {
-            const url = window.prompt('Enter Image URL:');
-            if (url && onCommand) {
-              onCommand('setImage', { src: url });
-            }
-          }}
-          aria-label="Insert Image"
-          title="Insert Image"
-          className="w-[34px] h-[34px] flex items-center justify-center rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+          onClick={() => imageInputRef.current?.click()}
+          aria-label="Upload Image"
+          title="Upload Image"
+          className="w-[34px] h-[34px] flex items-center justify-center rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
         >
           <ImageIcon className="w-4 h-4" />
+        </button>
+
+        {/* File Attachment Upload Button */}
+        <button
+          type="button"
+          disabled={isReadOnly}
+          onMouseDown={handlePreventFocusLoss}
+          onClick={() => attachmentInputRef.current?.click()}
+          aria-label="Upload File Attachment"
+          title="Upload File Attachment"
+          className="w-[34px] h-[34px] flex items-center justify-center rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+        >
+          <Paperclip className="w-4 h-4" />
         </button>
 
         <button

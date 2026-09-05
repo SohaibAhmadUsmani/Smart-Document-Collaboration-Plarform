@@ -42,17 +42,30 @@ export function useCommentAnchors(editorInstance) {
     const { from, to } = editorInstance.state.selection;
     if (from === to) return null; // No text selected
 
-    // Use getText() for plain text offsets (consistent with resolver)
+    const doc = editorInstance.state.doc;
+    const exactQuote = doc.textBetween(from, to, '\n');
+    const prefixContext = doc.textBetween(Math.max(0, from - 30), from, '\n');
+    const suffixContext = doc.textBetween(to, Math.min(doc.content.size, to + 30), '\n');
+
     const fullText = editorInstance.getText();
-    const exactQuote = fullText.slice(from, to);
-    const prefixContext = fullText.slice(Math.max(0, from - 30), from);
-    const suffixContext = fullText.slice(to, Math.min(fullText.length, to + 30));
+    const searchPattern = prefixContext + exactQuote + suffixContext;
+    const patternIndex = fullText.indexOf(searchPattern);
+    
+    let plainFrom = 0;
+    let plainTo = 0;
+    if (patternIndex !== -1) {
+      plainFrom = patternIndex + prefixContext.length;
+      plainTo = plainFrom + exactQuote.length;
+    } else {
+      plainFrom = fullText.indexOf(exactQuote);
+      plainTo = plainFrom !== -1 ? plainFrom + exactQuote.length : 0;
+    }
 
     return createCommentAnchor({
       documentId: state.documentId,
       anchorType: ANCHOR_TYPES.TEXT_SELECTION,
-      from,
-      to,
+      from: plainFrom,
+      to: plainTo,
       exactQuote,
       prefixContext,
       suffixContext,

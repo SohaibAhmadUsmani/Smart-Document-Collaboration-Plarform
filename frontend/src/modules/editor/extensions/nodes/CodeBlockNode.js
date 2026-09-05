@@ -5,7 +5,7 @@
  * @owner Muzammil
  *
  * [ROMAN URDU]:
- * Yeh custom ProseMirror block node hai jo `<pre><code class="language-..."/>` structure
+ * Yeh custom ProseMirror block node hai jo \<pre><code class="language-..."/>\ structure
  * render karta hai. Multi-line code snippets aur syntax highlighting ke liye use hota hai.
  */
 
@@ -15,7 +15,8 @@ import { Node, mergeAttributes } from '@tiptap/core';
  * Custom Preformatted Code Block Node.
  *
  * [ROMAN URDU]:
- * TipTap Node schema jo language (jaise javascript, python) aur unique blockId ko track karta hai.
+ * TipTap Node schema jo language (jaise javascript, python, html, plaintext) aur unique blockId ko track karta hai.
+ * Yeh cleanly `<pre><code class="language-..."/>` render karta hai bina dual ProseMirror instance issues ke.
  */
 export const CodeBlockNode = Node.create({
   name: 'codeBlock',

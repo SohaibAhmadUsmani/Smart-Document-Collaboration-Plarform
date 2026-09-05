@@ -1,17 +1,41 @@
+/**
+ * @file ForgotPasswordPage.jsx
+ * @description Password recovery request page for initiating reset link emails.
+ * Password recovery ka safah jo reset link email bhejne ki darkhwast ke liye istemal hota hai.
+ */
+
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import './AuthPages.css';
 
+/**
+ * ForgotPasswordPage allows users to request a password reset email.
+ * Includes client feedback state and accessible navigation links back to login.
+ *
+ * ForgotPasswordPage sarfeen ko password reset karne ka link hasil karne ki sahulat deta hai.
+ * Is mein request bhejne ke baad confirmation pegham aur login par wapis jane ka Link shaamil hai.
+ *
+ * @returns {React.ReactElement}
+ */
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
+  /**
+   * Submits email for password reset request.
+   * Password reset ke liye email submit karta hai.
+   *
+   * @param {React.FormEvent} event
+   */
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
 
+    const apiBase = import.meta.env?.VITE_API_URL || '';
+
     try {
-      const response = await fetch('/api/auth/forgot-password', {
+      const response = await fetch(`${apiBase}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -69,7 +93,7 @@ export default function ForgotPasswordPage() {
         )}
 
         <p className="auth-footer-text">
-          Remembered your password? <a href="/login">Log in</a>
+          Remembered your password? <Link to="/login">Log in</Link>
         </p>
       </div>
 

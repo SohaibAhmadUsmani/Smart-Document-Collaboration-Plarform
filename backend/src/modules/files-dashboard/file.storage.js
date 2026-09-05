@@ -32,10 +32,13 @@ const diskStorage = multer.diskStorage({
   },
 });
 
+export const ALLOWED_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx', '.png', '.jpg', '.jpeg']);
+
 function fileFilter(req, file, cb) {
-  if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  if (!ALLOWED_MIME_TYPES.has(file.mimetype) || !ALLOWED_EXTENSIONS.has(ext)) {
     const error = new Error(
-      `File type '${file.mimetype}' is not supported. Allowed: PDF, DOCX, XLSX, PNG, JPG.`
+      `File type '${file.mimetype}' with extension '${ext}' is not supported. Allowed: PDF, DOCX, XLSX, PNG, JPG.`
     );
     error.status = 400;
     return cb(error);
@@ -53,8 +56,38 @@ export function buildDownloadUrl(storedFileName) {
   return `/api/files/download/${storedFileName}`;
 }
 
+/**
+ * Resolves and validates absolute filesystem storage path for a file key.
+ * Sanitizes input using path.basename to prevent directory traversal attacks
+ * and ensures that the resolved path is strictly contained within UPLOAD_ROOT.
+ *
+ * [ROMAN URDU]:
+ * Yeh function file storage key ka absolute path resolve karta hai.
+ * Directory traversal attacks (jaise ../ ya ..\) se bachne ke liye `path.basename` se sanitize
+ * karta hai aur ensure karta hai ke resolved path `UPLOAD_ROOT` directory ke andar hi rahe.
+ *
+ * @param {string} storageKey - Stored filename key
+ * @returns {string} Sanitized absolute file path
+ * @throws {Error} If key is invalid or directory traversal is detected
+ */
 export function resolveStoragePath(storageKey) {
-  return path.join(UPLOAD_ROOT, storageKey);
+  if (!storageKey || typeof storageKey !== 'string') {
+    const error = new Error('Invalid storage key: key must be a non-empty string.');
+    error.status = 400;
+    throw error;
+  }
+
+  const safeKey = path.basename(storageKey);
+  const resolvedPath = path.resolve(UPLOAD_ROOT, safeKey);
+
+  // Ensure resolved path starts with UPLOAD_ROOT and is not the root folder itself
+  if (!resolvedPath.startsWith(UPLOAD_ROOT) || resolvedPath === UPLOAD_ROOT) {
+    const error = new Error('Access denied: directory traversal detected.');
+    error.status = 403;
+    throw error;
+  }
+
+  return resolvedPath;
 }
 
 export function deleteFromDisk(storageKey) {

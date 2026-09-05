@@ -11,7 +11,11 @@
  * taake editor UI freeze ya crash na ho.
  */
 
-import { MOCK_INITIAL_DOCUMENT } from './mockData.js';
+const EMPTY_DOCUMENT = {
+  title: 'Untitled Document',
+  content: { type: 'doc', content: [{ type: 'paragraph' }] },
+  plainText: '',
+};
 
 const API_BASE = '/api/documents';
 
@@ -78,7 +82,7 @@ export async function apiGetDocument(documentId) {
   if (res.ok && res.data) {
     return res.data;
   }
-  return { ...MOCK_INITIAL_DOCUMENT, id: documentId, _id: documentId };
+  return { ...EMPTY_DOCUMENT, id: documentId, _id: documentId };
 }
 
 /**
@@ -93,7 +97,7 @@ export async function apiGetDocument(documentId) {
 export async function apiListDocuments(queryParams = {}) {
   const queryString = new URLSearchParams(queryParams).toString();
   const res = await safeFetch(`${API_BASE}${queryString ? `?${queryString}` : ''}`, { method: 'GET' });
-  return res.data || [MOCK_INITIAL_DOCUMENT];
+  return res.data || [];
 }
 
 /**
@@ -111,7 +115,7 @@ export async function apiCreateDocument(payload) {
     body: JSON.stringify(payload),
   });
   if (res.ok && res.data) return res.data;
-  return { ...MOCK_INITIAL_DOCUMENT, ...payload, id: `doc_${Date.now()}` };
+  return { ...EMPTY_DOCUMENT, ...payload, id: `doc_${Date.now()}` };
 }
 
 /**
@@ -144,17 +148,52 @@ export async function apiUpdateDocumentMetadata(documentId, metadata) {
  * @returns {Promise<Object>} Autosave response
  */
 export async function apiAutosaveDocument(documentId, contentPayload) {
+  if (!documentId) {
+    return { success: false, error: 'Document ID is required' };
+  }
+
+  // Gracefully handle mock/offline document IDs without making failing network calls
+  if (typeof documentId === 'string' && (documentId.startsWith('doc_') || documentId.startsWith('offline_'))) {
+    return {
+      success: true,
+      version: (contentPayload.baseVersion || 1) + 1,
+      savedAt: new Date().toISOString(),
+      isOfflineSave: true,
+    };
+  }
+
   const res = await safeFetch(`${API_BASE}/${documentId}/autosave`, {
     method: 'PATCH',
     body: JSON.stringify(contentPayload),
   });
   if (res.ok && res.data) return res.data;
-  return {
-    success: true,
-    version: (contentPayload.baseVersion || 1) + 1,
-    savedAt: new Date().toISOString(),
-    isOfflineSave: true,
-  };
+
+  // CRITICAL: If server returned 409 VERSION_CONFLICT, throw so useAutosave detects the conflict
+  // and opens ConflictResolutionModal instead of silently swallowing the error.
+  // [ROMAN URDU]: Agar server 409 conflict return kare toh error throw karo taake
+  // useAutosave conflict detect kar sake aur ConflictResolutionModal khul sake.
+  if (res.status === 409) {
+    const conflictError = new Error('Version conflict detected');
+    conflictError.status = 409;
+    conflictError.code = 'VERSION_CONFLICT';
+    conflictError.serverDocument = res.data?.serverDocument || res.data;
+    throw conflictError;
+  }
+
+  // Only fall back to offline mock for genuine network errors, not server errors
+  if (res.isOffline) {
+    return {
+      success: true,
+      version: (contentPayload.baseVersion || 1) + 1,
+      savedAt: new Date().toISOString(),
+      isOfflineSave: true,
+    };
+  }
+
+  // For other server errors (500, 503, etc.), throw so useAutosave can handle gracefully
+  const serverError = new Error(res.data?.message || 'Autosave failed');
+  serverError.status = res.status;
+  throw serverError;
 }
 
 /**
@@ -208,7 +247,7 @@ export async function apiDuplicateDocument(documentId) {
   const res = await safeFetch(`${API_BASE}/${documentId}/duplicate`, {
     method: 'POST',
   });
-  return res.data || { ...MOCK_INITIAL_DOCUMENT, id: `doc_clone_${Date.now()}` };
+  return res.data || { ...EMPTY_DOCUMENT, id: `doc_clone_${Date.now()}` };
 }
 
 /**
@@ -390,5 +429,55 @@ export async function apiGetFolder(folderId) {
   const res = await safeFetch(`/api/folders/${folderId}`, { method: 'GET' });
   return res.data || { id: folderId, name: 'Folder' };
 }
+
+/**
+ * Fetches document permissions and collaborator list.
+ */
+export async function apiGetDocumentPermissions(documentId) {
+  const res = await safeFetch(`${API_BASE}/${documentId}/permissions`, { method: 'GET' });
+  return res.data?.data || res.data || { collaborators: [], sharingMode: 'workspace' };
+}
+
+/**
+ * Invites a new collaborator or updates role.
+ */
+export async function apiInviteCollaborator(documentId, email, role) {
+  const res = await safeFetch(`${API_BASE}/${documentId}/permissions`, {
+    method: 'POST',
+    body: JSON.stringify({ email, role }),
+  });
+  if (!res.ok) {
+    throw new Error(res.error || res.data?.message || 'Failed to invite collaborator');
+  }
+  return res.data?.data || res.data;
+}
+
+/**
+ * Removes a collaborator's access.
+ */
+export async function apiRemoveCollaborator(documentId, permissionIdOrUserId) {
+  const res = await safeFetch(`${API_BASE}/${documentId}/permissions/${permissionIdOrUserId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    throw new Error(res.error || res.data?.message || 'Failed to remove collaborator');
+  }
+  return res.data;
+}
+
+/**
+ * Updates document general sharing mode (private, workspace, anyone_with_link).
+ */
+export async function apiUpdateSharingMode(documentId, sharingMode) {
+  const res = await safeFetch(`${API_BASE}/${documentId}/sharing`, {
+    method: 'PUT',
+    body: JSON.stringify({ sharingMode }),
+  });
+  if (!res.ok) {
+    throw new Error(res.error || res.data?.message || 'Failed to update sharing mode');
+  }
+  return res.data?.data || res.data;
+}
+
 
 

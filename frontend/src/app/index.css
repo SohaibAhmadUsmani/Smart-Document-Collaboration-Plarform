@@ -440,3 +440,88 @@
   pointer-events: none;
   user-select: none;
 }
+
+/* ==========================================================================
+   TOP 20 GLOBAL CSS ENHANCEMENTS (UI POLISH)
+   ========================================================================== */
+
+/* 1. Global Smooth Scrolling */
+html { scroll-behavior: smooth; }
+
+/* 6. Smooth Text Selection */
+::selection { background: var(--color-accent, #2563eb); color: #ffffff; }
+
+/* 7. Global Focus-Visible (Accessibility) */
+:focus-visible { outline: 2px solid var(--color-accent, #2563eb); outline-offset: 2px; }
+
+/* 8. Glassmorphism Utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+@media (prefers-color-scheme: dark) {
+  .glass-panel { background: rgba(17, 24, 39, 0.7); border-color: rgba(255, 255, 255, 0.1); }
+}
+
+/* 9. Button Hover FX */
+.btn-hover-fx { transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease; }
+.btn-hover-fx:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+.btn-hover-fx:active { transform: translateY(0); }
+
+/* 10. Card Hover Elevate */
+.hover-elevate { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.hover-elevate:hover { transform: translateY(-2px); box-shadow: var(--shadow-popover, 0 10px 15px -3px rgba(0,0,0,0.1)); }
+
+/* 11. Input Glow */
+.input-glow:focus-within {
+  box-shadow: 0 0 0 3px var(--color-accent-soft, #eff6ff);
+  border-color: var(--color-accent, #2563eb);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+/* 13. Nav Link Shift */
+.nav-link-shift { transition: padding-left 0.2s ease, color 0.2s ease; }
+.nav-link-shift:hover { padding-left: 4px; color: var(--color-accent); }
+
+/* 14. Fade-in Animation */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
+/* 15. Popover Bounce */
+@keyframes popoverBounce {
+  0% { opacity: 0; transform: scale(0.95); }
+  70% { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.popover-bounce { animation: popoverBounce 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+/* 16. Pulse Ring */
+@keyframes pulseRing {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+.animate-pulse-ring { animation: pulseRing 2s infinite; }
+
+/* 17. Badge Glow */
+.badge-glow { box-shadow: 0 0 8px rgba(37, 99, 235, 0.3); }
+
+/* 18. Text Gradient */
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-role-owner) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 19. Avatar Scale */
+.avatar-scale { transition: transform 0.2s ease; }
+.avatar-scale:hover { transform: scale(1.05); }
+
+/* 20. Font Smoothing */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+

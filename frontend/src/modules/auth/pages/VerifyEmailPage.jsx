@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import './AuthPages.css';
 
 export default function VerifyEmailPage() {
   const { token } = useParams();
   const [status, setStatus] = useState('verifying');
+  const hasRequestedRef = useRef(false);
 
   useEffect(() => {
-    fetch(`/api/auth/verify-email/${token}`)
+    if (!token || hasRequestedRef.current) return;
+    hasRequestedRef.current = true;
+
+    const apiBase = import.meta.env?.VITE_API_URL || '';
+    fetch(`${apiBase}/api/auth/verify-email/${token}`)
       .then((response) => {
         if (response.ok) {
           setStatus('success');

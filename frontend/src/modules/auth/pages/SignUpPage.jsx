@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import './AuthPages.css';
 
 export default function SignUpPage() {
@@ -6,11 +7,14 @@ export default function SignUpPage() {
     firstName: '',
     lastName: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
   const [agreed, setAgreed] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   function handleChange(event) {
     setFormData({ ...formData, [event.target.name]: event.target.value });
@@ -20,18 +24,27 @@ export default function SignUpPage() {
     event.preventDefault();
     setError('');
 
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
     if (!agreed) {
       setError('Please agree to the Terms of Service and Privacy Policy');
       return;
     }
 
+    setIsLoading(true);
+
+    const apiBase = import.meta.env?.VITE_API_URL || '';
+
     try {
-      const response = await fetch('/api/auth/signup', {
+      const response = await fetch(`${apiBase}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: `${formData.firstName} ${formData.lastName}`,
-          email: formData.email,
+          name: `${formData.firstName} ${formData.lastName}`.trim(),
+          email: formData.email.trim(),
           password: formData.password
         })
       });
@@ -39,13 +52,23 @@ export default function SignUpPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || 'Signup failed');
+        if (response.status === 409) {
+          setError('An account with this email already exists. Please log in instead.');
+        } else {
+          setError(data.message || 'Signup failed. Please check your information.');
+        }
         return;
       }
 
-      window.location.href = '/login';
+      // Redirect to login page with clear feedback message
+      // Kamyab registration ke baad login safah par feedback message ke sath redirect karein
+      navigate('/login', {
+        state: { message: 'Account created successfully! Please sign in with your email and password.' }
+      });
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError(err?.message || 'Something went wrong. Please check your connection and try again.');
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -61,8 +84,8 @@ export default function SignUpPage() {
         <p className="auth-subtitle">Join over 10,000+ teams managing documents with precision.</p>
 
         <div className="auth-social-row">
-          <button type="button" className="auth-social-button">Google</button>
-          <button type="button" className="auth-social-button">GitHub</button>
+          <button type="button" className="auth-social-button" disabled={isLoading}>Google</button>
+          <button type="button" className="auth-social-button" disabled={isLoading}>GitHub</button>
         </div>
 
         <div className="auth-divider">OR CONTINUE WITH EMAIL</div>
@@ -78,6 +101,7 @@ export default function SignUpPage() {
                 value={formData.firstName}
                 onChange={handleChange}
                 required
+                disabled={isLoading}
               />
             </div>
             <div className="auth-field">
@@ -89,6 +113,7 @@ export default function SignUpPage() {
                 value={formData.lastName}
                 onChange={handleChange}
                 required
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -102,6 +127,7 @@ export default function SignUpPage() {
               value={formData.email}
               onChange={handleChange}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -116,11 +142,13 @@ export default function SignUpPage() {
                 onChange={handleChange}
                 minLength={8}
                 required
+                disabled={isLoading}
               />
               <button
                 type="button"
                 className="auth-password-toggle"
                 onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -128,26 +156,47 @@ export default function SignUpPage() {
             <span className="auth-hint">Must be at least 8 characters.</span>
           </div>
 
+          <div className="auth-field">
+            <label>Confirm Password</label>
+            <div className="auth-password-wrapper">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                placeholder="••••••••"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                minLength={8}
+                required
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
           <label className="auth-checkbox-row">
             <input
               type="checkbox"
               checked={agreed}
               onChange={(event) => setAgreed(event.target.checked)}
+              disabled={isLoading}
             />
             <span>
-              I agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.
+              I agree to the <Link to="/terms">Terms of Service</Link> and <Link to="/privacy">Privacy Policy</Link>.
             </span>
           </label>
 
-          {error && <p className="auth-error">{error}</p>}
+          {error && (
+            <p role="alert" aria-live="assertive" className="auth-error">
+              {error}
+            </p>
+          )}
 
-          <button type="submit" className="auth-submit-button">
-            Get Started →
+          <button type="submit" className="auth-submit-button" disabled={isLoading}>
+            {isLoading ? 'Signing Up...' : 'Get Started →'}
           </button>
         </form>
 
         <p className="auth-footer-text">
-          Already have an account? <a href="/login">Log in</a>
+          Already have an account? <Link to="/login">Log in</Link>
         </p>
       </div>
 

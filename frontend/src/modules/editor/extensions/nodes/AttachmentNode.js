@@ -33,6 +33,19 @@ export const AttachmentNode = Node.create({
     };
   },
 
+  addCommands() {
+    return {
+      insertAttachment: (options) => ({ chain }) => {
+        return chain()
+          .insertContent({
+            type: this.name,
+            attrs: options,
+          })
+          .run();
+      },
+    };
+  },
+
   parseHTML() {
     return [{ tag: 'div[data-editor-node="attachment"]' }];
   },

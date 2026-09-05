@@ -62,3 +62,12 @@ Thumbs.db
 # Local Architecture & Blueprint Documents
 Smart_Document_Platform_Architecture_Blueprint.md
 
+# Archives & Distribution Packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+DocSync_Pro_Clean_Production.zip
+DocSynchronizerProCleanProduction.zip

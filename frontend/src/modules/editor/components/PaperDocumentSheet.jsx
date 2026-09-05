@@ -23,6 +23,7 @@ import { UploadCloud } from 'lucide-react';
  *
  * @param {Object} props
  * @param {React.RefObject} props.editorRef - Ref for the TipTap ProseMirror contenteditable container
+ * @param {Object} [props.editorInstance=null] - TipTap Editor instance
  * @param {boolean} [props.isReady=true] - Whether the editor instance is fully initialized
  * @param {boolean} [props.isReadOnly=false] - Whether editing is disabled
  * @param {Function} [props.onFileDrop] - Callback when a file is dropped onto the sheet
@@ -30,6 +31,7 @@ import { UploadCloud } from 'lucide-react';
  */
 export function PaperDocumentSheet({
   editorRef,
+  editorInstance = null,
   isReady = true,
   isReadOnly = false,
   onFileDrop,
@@ -91,6 +93,20 @@ export function PaperDocumentSheet({
     }
   };
 
+  const handleSurfaceClick = (e) => {
+    if (isReadOnly) return;
+    if (editorInstance) {
+      if (!editorInstance.isFocused) {
+        editorInstance.chain().focus('end').run();
+      }
+    } else if (editorRef?.current) {
+      const pm = editorRef.current.querySelector('.ProseMirror');
+      if (pm && document.activeElement !== pm) {
+        pm.focus();
+      }
+    }
+  };
+
   return (
     <div
       role="region"
@@ -98,7 +114,8 @@ export function PaperDocumentSheet({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`relative w-full max-w-[880px] min-h-[1100px] bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-300 px-4 sm:px-10 md:px-16 lg:px-20 py-8 sm:py-12 mb-16 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_1px_3px_rgba(0,0,0,0.3)] ${
+      onClick={handleSurfaceClick}
+      className={`relative w-full max-w-[880px] min-h-[1100px] cursor-text bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-300 px-4 sm:px-10 md:px-16 lg:px-20 py-8 sm:py-12 mb-16 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4),0_1px_3px_rgba(0,0,0,0.3)] ${
         isDragOver
           ? 'border-blue-500 ring-4 ring-blue-500/10 shadow-2xl bg-blue-50/20 dark:bg-blue-950/20'
           : 'border-slate-200/90 dark:border-slate-800'
@@ -134,14 +151,14 @@ export function PaperDocumentSheet({
       <article
         data-editor-canvas="true"
         data-readonly={isReadOnly ? 'true' : 'false'}
-        className="max-w-none focus:outline-none min-h-[700px] print:p-0"
+        onClick={handleSurfaceClick}
+        className="max-w-none focus:outline-none min-h-[700px] cursor-text print:p-0"
       >
         <div
           ref={editorRef}
           data-editor-surface="true"
-          tabIndex={0}
           aria-label="Editable document text surface"
-          className="outline-none"
+          className="outline-none min-h-[700px] cursor-text"
         />
       </article>
     </div>

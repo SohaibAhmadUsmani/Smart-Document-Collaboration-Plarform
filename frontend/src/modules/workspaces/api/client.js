@@ -6,19 +6,35 @@ export class ApiError extends Error {
     }
 }
 async function request(path, options = {}) {
-    const response = await fetch(`/api${path}`, {
-        ...options,
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    });
+    const token = localStorage.getItem('token');
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    const apiBase = import.meta.env?.VITE_API_URL || '';
+
+    let response;
+    try {
+        response = await fetch(`${apiBase}/api${path}`, {
+            ...options,
+            credentials: 'omit', // No cookies needed since we use Bearer token
+            headers: {
+                'Content-Type': 'application/json',
+                ...authHeaders,
+                ...options.headers,
+            },
+        });
+    } catch (networkErr) {
+        // Backend is offline / unreachable — throw a friendly ApiError instead of crashing
+        throw new ApiError('Backend is currently unavailable. Please ensure the server is running.', 0);
+    }
     if (response.status === 204) {
         return undefined;
     }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            sessionStorage.removeItem('token');
+            window.location.href = '/login';
+        }
         throw new ApiError(body.error ?? 'Something went wrong', response.status);
     }
     return body;

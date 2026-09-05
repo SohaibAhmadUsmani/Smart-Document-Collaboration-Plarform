@@ -1,30 +1,50 @@
-const FILES_BASE = '/api/files';
-const DASHBOARD_BASE = '/api/dashboard';
+const API_BASE = import.meta.env?.VITE_API_URL || '';
+const FILES_BASE = `${API_BASE}/api/files`;
+const DASHBOARD_BASE = `${API_BASE}/api/dashboard`;
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  const token = localStorage.getItem('token');
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
 async function safeFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeout || 15000);
+  const signal = options.signal || controller.signal;
+
   try {
     const response = await fetch(url, {
       ...options,
+      signal,
       headers: {
         ...getAuthHeaders(),
         ...options.headers,
       },
     });
+    clearTimeout(timeoutId);
     const isJson = response.headers.get('content-type')?.includes('application/json');
-    const data = isJson ? await response.json() : null;
+    const data = isJson ? await response.json().catch(() => null) : null;
     if (!response.ok) {
-      return { ok: false, status: response.status, data, error: data?.message || 'Request failed' };
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+      return { ok: false, status: response.status, data, error: data?.message || `Request failed with status ${response.status}` };
     }
     return { ok: true, status: response.status, data };
   } catch (error) {
-    return { ok: false, status: 0, data: null, error: error.message, isOffline: true };
+    clearTimeout(timeoutId);
+    const isTimeout = error.name === 'AbortError';
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: isTimeout ? 'Request timed out' : error.message,
+      isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false
+    };
   }
 }
 

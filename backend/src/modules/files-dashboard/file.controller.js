@@ -1,6 +1,9 @@
 import * as fileService from './file.service.js';
 import * as activityLogService from './activityLog.service.js';
 import { resolveStoragePath } from './file.storage.js';
+import { FileModel } from './file.model.js';
+import { permissionService } from '../workspaces/services/permissionService.js';
+import mongoose from 'mongoose';
 import fs from 'fs';
 
 function getUserId(req) {
@@ -94,6 +97,26 @@ export async function downloadFileHandler(req, res, next) {
         error: 'Not Found',
         message: 'File not found on server.',
       });
+    }
+
+    const userId = getUserId(req);
+
+    if (mongoose.connection?.readyState === 1) {
+      const file = await FileModel.findOne({ storageKey }).lean().exec();
+      if (file) {
+        const isUploader = String(file.uploadedBy) === String(userId);
+        if (!isUploader && file.workspaceId) {
+          const userRole = await permissionService.getUserRole(userId, file.workspaceId);
+          if (!userRole) {
+            return res.status(403).json({
+              success: false,
+              error: 'Forbidden',
+              message: 'Access denied. You do not have permission to download this file.',
+            });
+          }
+        }
+        return res.download(fullPath, file.fileName);
+      }
     }
 
     return res.download(fullPath);

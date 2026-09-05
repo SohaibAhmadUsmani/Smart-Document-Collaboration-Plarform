@@ -25,7 +25,6 @@ import {
   ChevronLeft,
   X,
 } from 'lucide-react';
-import { MOCK_COMMENTS, MOCK_COLLABORATORS, MOCK_HISTORY, MOCK_CURRENT_USER } from '../services/mockData.js';
 
 /**
  * CollaborationSidebar Component (DocSync Pro Collaboration Panel).
@@ -48,7 +47,7 @@ export function CollaborationSidebar({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('comments');
-  const [comments, setComments] = useState(MOCK_COMMENTS);
+  const [comments, setComments] = useState([]);
   const [replyInputs, setReplyInputs] = useState({});
   const [newCommentInput, setNewCommentInput] = useState('');
 
@@ -84,7 +83,7 @@ export function CollaborationSidebar({
               ...replies,
               {
                 id: `rep_${Date.now()}`,
-                author: MOCK_CURRENT_USER,
+                author: { name: 'User', avatar: '' },
                 body: text,
                 timestamp: 'Just now',
               },
@@ -103,7 +102,7 @@ export function CollaborationSidebar({
 
     const newComment = {
       id: `cmt_${Date.now()}`,
-      author: MOCK_CURRENT_USER,
+      author: { name: 'User', avatar: '' },
       body: newCommentInput.trim(),
       timestamp: 'Just now',
       createdAt: new Date().toISOString(),
@@ -358,7 +357,7 @@ export function CollaborationSidebar({
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
               Active in this Document
             </span>
-            {MOCK_COLLABORATORS.map((collab) => (
+            {([]).map((collab) => (
               <div
                 key={collab.id}
                 className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800 flex items-center justify-between"
@@ -401,7 +400,7 @@ export function CollaborationSidebar({
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
               Version Snapshots
             </span>
-            {MOCK_HISTORY.map((hist) => (
+            {([]).map((hist) => (
               <div
                 key={hist.id}
                 className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800 hover:border-blue-400 cursor-pointer transition-all"

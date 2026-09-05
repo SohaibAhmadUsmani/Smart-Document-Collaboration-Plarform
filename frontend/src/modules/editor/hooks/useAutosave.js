@@ -36,6 +36,7 @@ export function useAutosave({
   documentId,
   content,
   plainText = '',
+  title = '',
   currentVersion = 1,
   enabled = true,
   debounceMs = AUTOSAVE_DEFAULT_DEBOUNCE_MS,
@@ -49,6 +50,8 @@ export function useAutosave({
   const timeoutRef = useRef(null);
   const isFirstRender = useRef(true);
   const lastSavedContentRef = useRef(null);
+  const lastSavedTitleRef = useRef(title);
+  const lastSavedDocIdRef = useRef(documentId);
 
   const QUEUE_KEY = `docsync_offline_queue_${documentId}`;
 
@@ -61,6 +64,7 @@ export function useAutosave({
           documentId,
           content: data.content,
           plainText: data.plainText,
+          title: data.title || title,
           version: currentVersion,
           queuedAt: Date.now(),
         })
@@ -69,17 +73,23 @@ export function useAutosave({
       setStatus(SAVE_STATUS.OFFLINE_SAVED);
     } catch (e) {
       console.error('[LocalStorage Queue Error]:', e);
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        setError('Browser storage is full. Unable to save offline edits.');
+      } else {
+        setError('Failed to queue offline changes.');
+      }
+      setStatus(SAVE_STATUS.ERROR);
     }
-  }, [QUEUE_KEY, documentId, currentVersion]);
+  }, [QUEUE_KEY, documentId, currentVersion, title]);
 
   // Server Save Execution Engine
   const performSave = useCallback(
-    async (contentToSave, textToSave) => {
+    async (contentToSave, textToSave, titleToSave = title) => {
       if (!documentId || !enabled) return;
 
       // If browser is offline, buffer locally and return
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        saveToLocalQueue({ content: contentToSave, plainText: textToSave });
+        saveToLocalQueue({ content: contentToSave, plainText: textToSave, title: titleToSave });
         return;
       }
 
@@ -90,10 +100,12 @@ export function useAutosave({
         const result = await apiAutosaveDocument(documentId, {
           content: contentToSave,
           plainText: textToSave,
+          title: titleToSave || undefined,
           baseVersion: currentVersion,
         });
 
         lastSavedContentRef.current = JSON.stringify(contentToSave);
+        lastSavedTitleRef.current = titleToSave;
         setLastSavedAt(new Date(result?.updatedAt || Date.now()));
         setStatus(SAVE_STATUS.SAVED);
         setIsOfflineQueued(false);
@@ -138,18 +150,38 @@ export function useAutosave({
     return () => window.removeEventListener('online', handleOnline);
   }, [performSave, QUEUE_KEY]);
 
-  // Trigger debounced save when content changes
+  // Prevent closing tab while saving
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (status === SAVE_STATUS.SAVING || isOfflineQueued) {
+        e.preventDefault();
+        e.returnValue = ''; // Required for modern browsers to show a prompt
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [status, isOfflineQueued]);
+
+  // Trigger debounced save when content, title, or documentId changes
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       lastSavedContentRef.current = JSON.stringify(content);
+      lastSavedTitleRef.current = title;
+      lastSavedDocIdRef.current = documentId;
       return;
     }
 
     if (!enabled || !documentId) return;
 
+    const docIdChanged = lastSavedDocIdRef.current !== documentId;
+    if (docIdChanged) {
+      lastSavedDocIdRef.current = documentId;
+      lastSavedContentRef.current = null;
+    }
+
     const stringified = JSON.stringify(content);
-    if (stringified === lastSavedContentRef.current) {
+    if (!docIdChanged && stringified === lastSavedContentRef.current && title === lastSavedTitleRef.current) {
       return;
     }
 
@@ -160,7 +192,7 @@ export function useAutosave({
     }
 
     timeoutRef.current = setTimeout(() => {
-      performSave(content, plainText);
+      performSave(content, plainText, title);
     }, debounceMs);
 
     return () => {
@@ -168,15 +200,19 @@ export function useAutosave({
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [content, plainText, enabled, documentId, debounceMs, performSave]);
+  }, [content, plainText, title, enabled, documentId, debounceMs, performSave]);
 
   // Manual save flush trigger
   const saveNow = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    return performSave(content, plainText);
-  }, [content, plainText, performSave]);
+    return performSave(content, plainText, title);
+  }, [content, plainText, title, performSave]);
+
+  // NOTE: Conditional useBlocker was removed here to prevent React Router Rules of Hooks crashes.
+  // [ROMAN URDU]:
+  // React Router hook crash ko rokne ke liye conditional useBlocker call yahan se khatam kar diya gaya hai.
 
   return {
     status,

@@ -53,15 +53,71 @@ export function useDocumentCollaboration({
   const readyToEmitRef = useRef(false);
 
   // ── Apply a remote content update into the existing editor ────────────────
+  /**
+   * Applies incoming remote content into the local TipTap editor instance.
+   * Synchronously syncs lastSeenContentRef to prevent infinite rebroadcast echo loops,
+   * and preserves user cursor selection across content replacement.
+   *
+   * [ROMAN URDU]:
+   * Remote user ka content update TipTap editor mein apply karta hai.
+   * Echo loop se bachne ke liye `lastSeenContentRef` ko synchronously update karta hai,
+   * aur content replace hone ke dauran local user ki cursor selection ko preserve rakhta hai.
+   *
+   * @param {Object} remoteContent - TipTap JSON AST from remote client
+   * @param {string} remotePlainText - Plain text string representation
+   */
   const applyRemoteContent = useCallback((remoteContent, remotePlainText) => {
-    isApplyingRemoteRef.current = true;
+    const nextContentStr = remoteContent ? JSON.stringify(remoteContent) : null;
     const ed = editorRef.current;
+
     if (ed) {
+      try {
+        const currentJSON = ed.getJSON();
+        if (JSON.stringify(currentJSON) === nextContentStr) {
+          // Document AST is already equivalent; avoid clobbering active focused node
+          return;
+        }
+      } catch (_) {}
+
+      isApplyingRemoteRef.current = true;
+      // Synchronously update lastSeenContentRef to prevent rebroadcast echo loop
+      lastSeenContentRef.current = nextContentStr;
+
+      // Capture the user's cursor selection before setContent
+      // [ROMAN URDU]: Remote content lagane se pehle user ki current cursor selection save karte hain.
+      const prevSelection = ed.state.selection;
+      const prevFrom = prevSelection?.from;
+      const prevTo = prevSelection?.to;
+
       // setContent triggers the editor's onUpdate -> existing UPDATE_CONTENT
       // flow, keeping editor + autosave state in sync.
       ed.commands.setContent(remoteContent, false);
+
+      // Restore the user's cursor selection after setContent (clamped safely within bounds)
+      // [ROMAN URDU]: Content update hone ke baad cursor position ko safe bounds ke andar restore karte hain.
+      if (typeof prevFrom === 'number' && typeof prevTo === 'number' && ed.state?.doc) {
+        const maxPos = ed.state.doc.content.size;
+        const safeFrom = Math.min(Math.max(0, prevFrom), maxPos);
+        const safeTo = Math.min(Math.max(0, prevTo), maxPos);
+        try {
+          ed.commands.setTextSelection({ from: safeFrom, to: safeTo });
+        } catch {
+          try {
+            ed.commands.setTextSelection(Math.min(safeFrom, maxPos));
+          } catch {
+            // Graceful fallback if selection restoration cannot be performed
+          }
+        }
+      }
+
       // Safety: if setContent produced no real change the content-watch effect
       // may never run to clear the flag, so clear it on the next tick as well.
+      setTimeout(() => {
+        isApplyingRemoteRef.current = false;
+      }, 0);
+    } else {
+      isApplyingRemoteRef.current = true;
+      lastSeenContentRef.current = nextContentStr;
       setTimeout(() => {
         isApplyingRemoteRef.current = false;
       }, 0);

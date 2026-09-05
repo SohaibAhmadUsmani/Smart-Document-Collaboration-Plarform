@@ -14,6 +14,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { SmartBackButton } from './SmartBackButton.jsx';
 import {
   FileText,
   ChevronRight,
@@ -23,11 +25,13 @@ import {
   UploadCloud,
   Plus,
   CloudOff,
+  ArrowLeft,
   MoreVertical,
   Keyboard,
   History,
+  Pencil,
+  Folder,
 } from 'lucide-react';
-import { MOCK_COLLABORATORS } from '../services/mockData.js';
 import { SAVE_STATUS } from '../types/document.js';
 
 /**
@@ -53,15 +57,14 @@ export function DocSubHeader({
   workspaceName = 'Workspaces',
   saveStatus = SAVE_STATUS.SAVED,
   lastSavedAt = null,
+  activeUsers = [],
   onTitleChange,
   onShareClick,
-  onPublishClick,
+  onInviteClick,
   onOpenShortcuts,
   onOpenHistory,
 }) {
   const [activeTooltip, setActiveTooltip] = useState(null);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isPublished, setIsPublished] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState(documentTitle);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -92,19 +95,7 @@ export function DocSubHeader({
   }, [mobileMenuOpen]);
 
   const isSaving = saveStatus === SAVE_STATUS.SAVING;
-  const isError = saveStatus === SAVE_STATUS.ERROR;
-
-  const handlePublish = async () => {
-    setIsPublishing(true);
-    if (onPublishClick) {
-      await onPublishClick();
-    }
-    setTimeout(() => {
-      setIsPublishing(false);
-      setIsPublished(true);
-      setTimeout(() => setIsPublished(false), 3000);
-    }, 800);
-  };
+  const isError = saveStatus === SAVE_STATUS.ERROR || saveStatus === SAVE_STATUS.OFFLINE_SAVED;
 
   const handleTitleSubmit = () => {
     setIsEditingTitle(false);
@@ -119,73 +110,91 @@ export function DocSubHeader({
     <div
       role="region"
       aria-label="Document Navigation Bar"
-      className="h-14 w-full px-3 sm:px-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-12 z-40 select-none"
+      className="h-14 w-full px-3 sm:px-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-12 z-40 select-none"
     >
       {/* Left: Breadcrumbs & Inline Title Edit */}
       <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 mr-2">
-        <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        {/* Smart history-aware back navigation */}
+        <SmartBackButton
+          fallbackPath="/workspaces"
+          className="mr-0.5 p-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          title="Go Back"
+        />
+        <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
 
         <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 flex-shrink-0" />
-        <span
-          className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer transition-colors truncate max-w-[80px] sm:max-w-[120px]"
+        
+        {/* Interactive Workspace Breadcrumb */}
+        <Link
+          to="/workspaces"
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors truncate max-w-[110px] sm:max-w-[160px]"
           title={workspaceName}
         >
-          {workspaceName}
-        </span>
+          <Folder className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+          <span className="truncate">{workspaceName}</span>
+        </Link>
 
         <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 flex-shrink-0" />
 
         {/* Title Truncation with Inline Edit Input */}
         {isEditingTitle ? (
-          <input
-            type="text"
-            value={titleInput}
-            onChange={(e) => setTitleInput(e.target.value)}
-            onBlur={handleTitleSubmit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleTitleSubmit();
-              if (e.key === 'Escape') {
-                setTitleInput(documentTitle);
-                setIsEditingTitle(false);
-              }
-            }}
-            aria-label="Edit document title"
-            className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white border border-blue-500 bg-white dark:bg-slate-800 rounded px-2 py-0.5 outline-none max-w-[140px] xs:max-w-[200px] sm:max-w-xs md:max-w-md w-full focus:ring-2 focus:ring-blue-100"
-            autoFocus
-          />
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={titleInput}
+              onChange={(e) => setTitleInput(e.target.value)}
+              onBlur={handleTitleSubmit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleTitleSubmit();
+                if (e.key === 'Escape') {
+                  setTitleInput(documentTitle);
+                  setIsEditingTitle(false);
+                }
+              }}
+              aria-label="Edit document title"
+              className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white border-2 border-blue-500 bg-white dark:bg-slate-800 rounded-lg px-2.5 py-0.5 outline-none max-w-[150px] xs:max-w-[220px] sm:max-w-xs md:max-w-md w-full shadow-xs focus:ring-2 focus:ring-blue-500/20"
+              autoFocus
+            />
+            <span className="hidden sm:inline text-[10px] text-slate-400 font-mono">↵ save</span>
+          </div>
         ) : (
-          <span
+          <div
             onClick={() => setIsEditingTitle(true)}
-            className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs md:max-w-md hover:bg-slate-100 dark:hover:bg-slate-800 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+            className="group/title flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-800/80 cursor-pointer transition-colors max-w-[140px] xs:max-w-[200px] sm:max-w-xs md:max-w-md"
             title={`${documentTitle} (Click to rename)`}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => e.key === 'Enter' && setIsEditingTitle(true)}
             aria-label={`Document title: ${documentTitle}. Press Enter or click to rename.`}
           >
-            {documentTitle}
-          </span>
+            <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+              {documentTitle}
+            </span>
+            <Pencil className="w-3 h-3 text-slate-400 opacity-0 group-hover/title:opacity-100 transition-opacity flex-shrink-0" />
+          </div>
         )}
 
         {/* Live Sync Status Pill */}
         <div
           role="status"
           aria-live="polite"
-          className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800 transition-all duration-200 flex-shrink-0"
+          className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-200 flex-shrink-0 text-[11px] font-semibold ${
+            isSaving
+              ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-200/80 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+              : isError
+              ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-200/80 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+              : 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200/80 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+          }`}
         >
           {isSaving ? (
             <>
-              <RefreshCw className="w-3 h-3 text-emerald-600 dark:text-emerald-400 animate-spin" />
-              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                Saving...
-              </span>
+              <RefreshCw className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-spin" />
+              <span>Saving changes...</span>
             </>
           ) : isError ? (
             <>
               <CloudOff className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-              <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
-                Saved Locally
-              </span>
+              <span>Saved locally</span>
             </>
           ) : (
             <>
@@ -193,48 +202,74 @@ export function DocSubHeader({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                Live Syncing
-              </span>
+              <span>Saved to workspace</span>
             </>
           )}
         </div>
       </div>
 
-      {/* Right: Collaborators Avatar Stack, Share, and Publish */}
+      {/* Right: Collaborators Avatar Stack, History, and Share */}
       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         {/* Collaborators Avatar Stack */}
         <div className="flex items-center -space-x-2 mr-1 sm:mr-2">
-          {MOCK_COLLABORATORS.slice(0, 3).map((collab) => (
-            <div
-              key={collab.id}
-              className="relative group cursor-pointer"
-              onMouseEnter={() => setActiveTooltip(collab.id)}
-              onMouseLeave={() => setActiveTooltip(null)}
-            >
-              <img
-                src={collab.avatar}
-                alt={collab.name}
-                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full ring-2 ring-white dark:ring-slate-900 object-cover transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:scale-105 group-hover:z-10"
-              />
-              {collab.status === 'editing' && (
+          {activeUsers.slice(0, 4).map((collab, index) => {
+            const displayName = collab.name || collab.email || 'Collaborator';
+            const initials = displayName
+              .split(' ')
+              .map((n) => n[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 2);
+            const userKey = collab.userId || collab.socketId || index;
+
+            return (
+              <div
+                key={userKey}
+                className="relative group cursor-pointer"
+                onMouseEnter={() => setActiveTooltip(userKey)}
+                onMouseLeave={() => setActiveTooltip(null)}
+              >
+                {collab.avatar ? (
+                  <img
+                    src={collab.avatar}
+                    alt={displayName}
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full ring-2 ring-white dark:ring-slate-900 object-cover transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:scale-105 group-hover:z-10"
+                  />
+                ) : (
+                  <div
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full ring-2 ring-white dark:ring-slate-900 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center text-[10px] font-bold transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:scale-105 group-hover:z-10 shadow-2xs"
+                    title={displayName}
+                  >
+                    {initials}
+                  </div>
+                )}
                 <span
                   className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-slate-900"
-                  title="Currently editing"
+                  title="Online"
                 />
-              )}
-              {activeTooltip === collab.id && (
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 px-2 py-1 bg-slate-900 text-white text-[10px] font-medium rounded shadow-lg whitespace-nowrap pointer-events-none">
-                  {collab.name} ({collab.status})
-                </div>
-              )}
+                {activeTooltip === userKey && (
+                  <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 px-2 py-1 bg-slate-900 text-white text-[10px] font-medium rounded shadow-lg whitespace-nowrap pointer-events-none">
+                    {displayName} {collab.role ? `(${collab.role})` : ''}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {activeUsers.length > 4 && (
+            <div
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full ring-2 ring-white dark:ring-slate-900 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center text-[10px] font-bold"
+              title={`${activeUsers.length - 4} more online`}
+            >
+              +{activeUsers.length - 4}
             </div>
-          ))}
+          )}
 
           {/* Add Collaborator Button */}
           <button
             type="button"
-            className="w-6 h-6 sm:w-7 sm:h-7 rounded-full ring-2 ring-white dark:ring-slate-900 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-xs font-semibold transition-colors"
+            onClick={onInviteClick || onShareClick}
+            className="w-6 h-6 sm:w-7 sm:h-7 rounded-full ring-2 ring-white dark:ring-slate-900 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer active:scale-95"
             title="Invite Collaborator"
             aria-label="Invite Collaborator"
           >
@@ -257,49 +292,23 @@ export function DocSubHeader({
         <button
           type="button"
           onClick={onOpenHistory}
-          className="h-8.5 px-3.5 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-all active:scale-98"
+          className="h-8.5 px-3.5 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs transition-all active:scale-98"
           title="View Version History"
         >
           <History className="w-3.5 h-3.5 text-blue-600" />
           <span>History</span>
         </button>
 
-        {/* Share Button */}
+        {/* Share Button (Primary CTA) */}
         <button
           type="button"
           onClick={onShareClick}
           aria-label="Share document"
           title="Share document"
-          className="h-8.5 px-2.5 sm:px-3.5 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs transition-all active:scale-98"
+          className="h-8.5 px-3.5 sm:px-4.5 flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs shadow-blue-500/20 transition-all active:scale-95 cursor-pointer"
         >
-          <Share2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-          <span className="hidden sm:inline">Share</span>
-        </button>
-
-        {/* Publish Button (Primary CTA) */}
-        <button
-          type="button"
-          onClick={handlePublish}
-          disabled={isPublishing}
-          aria-label="Publish document"
-          className="h-8.5 px-3 sm:px-4 flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-xs font-bold text-white shadow-xs transition-all"
-        >
-          {isPublished ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline">Published</span>
-            </>
-          ) : isPublishing ? (
-            <>
-              <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" />
-              <span className="hidden sm:inline">Publishing...</span>
-            </>
-          ) : (
-            <>
-              <UploadCloud className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline">Publish</span>
-            </>
-          )}
+          <Share2 className="w-3.5 h-3.5 text-white" />
+          <span>Share</span>
         </button>
 
         {/* Mobile Action Overflow Menu Button (Visible on < 640px) */}

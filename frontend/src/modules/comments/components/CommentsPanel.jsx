@@ -22,6 +22,7 @@ import { CommentComposer } from './CommentComposer.jsx';
  */
 export function CommentsPanel({
   documentId,
+  workspaceId,
   createAnchorPayload = null,
   onCommentCreated,
   onCommentClick,
@@ -52,7 +53,7 @@ export function CommentsPanel({
   }, [comments, isLoading, onCommentsLoaded]);
 
   const handleCreateComment = useCallback(
-    async ({ body }) => {
+    async ({ body, mentions }) => {
       // Resolve anchor payload: accept either a function (captures at submission time)
       // or a plain object (for testing / static anchor data).
       const anchor =
@@ -63,6 +64,7 @@ export function CommentsPanel({
       const payload = {
         documentId,
         body,
+        mentions: mentions || [],
         ...(anchor || {}),
       };
       const created = await createComment(payload);
@@ -75,8 +77,8 @@ export function CommentsPanel({
   );
 
   const handleReply = useCallback(
-    async (commentId, { body }) => {
-      return replyToComment(commentId, { body, documentId });
+    async (commentId, { body, mentions }) => {
+      return replyToComment(commentId, { body, mentions: mentions || [], documentId });
     },
     [replyToComment, documentId]
   );
@@ -109,9 +111,10 @@ export function CommentsPanel({
       {/* Comment composer */}
       <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
         <CommentComposer
+          workspaceId={workspaceId}
           onSubmit={handleCreateComment}
           isSubmitting={isCreating}
-          placeholder="Write a comment..."
+          placeholder="Write a comment... (Type @ to mention)"
           submitLabel="Comment"
         />
       </div>
@@ -127,6 +130,7 @@ export function CommentsPanel({
         ) : (
           <CommentList
             topLevelComments={topLevelComments}
+            workspaceId={workspaceId}
             getReplies={getReplies}
             onReply={handleReply}
             onResolve={resolveComment}

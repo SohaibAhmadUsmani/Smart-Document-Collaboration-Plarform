@@ -162,6 +162,7 @@ const DocumentSchema = new mongoose.Schema(
         },
       ],
       default: [],
+      validate: [(val) => val.length <= 20, 'Cannot have more than 20 tags per document'],
       index: true,
     },
     favoritedBy: {
@@ -212,6 +213,17 @@ const DocumentSchema = new mongoose.Schema(
       default: 1,
       min: 1,
     },
+    sharingMode: {
+      type: String,
+      enum: ['private', 'workspace', 'anyone_with_link'],
+      default: 'workspace',
+      index: true,
+    },
+    shareToken: {
+      type: String,
+      default: null,
+      index: { sparse: true },
+    },
     snapshotCheckpointVersion: {
       type: Number,
       default: 1,
@@ -220,6 +232,15 @@ const DocumentSchema = new mongoose.Schema(
       type: String,
       default: null,
       trim: true,
+    },
+    isPublished: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    publishedAt: {
+      type: Date,
+      default: null,
     },
   },
   {
@@ -231,11 +252,12 @@ const DocumentSchema = new mongoose.Schema(
 
 // High-performance compound indexes for multi-tenant workspace queries
 DocumentSchema.index({ workspaceId: 1, isArchived: 1, updatedAt: -1 });
+DocumentSchema.index({ workspaceId: 1, isArchived: 1, folderId: 1, updatedAt: -1 });
 DocumentSchema.index({ workspaceId: 1, folderId: 1, isArchived: 1 });
 DocumentSchema.index({ workspaceId: 1, tags: 1, isArchived: 1 });
 DocumentSchema.index({ workspaceId: 1, favoritedBy: 1, isArchived: 1 });
-DocumentSchema.index({ isArchived: 1, scheduledPermanentDeletionAt: 1 });
-DocumentSchema.index({ scheduledPermanentDeletionAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+DocumentSchema.index({ isArchived: 1, scheduledPermanentDeletionAt: 1 }, { sparse: true });
+// Note: MongoDB TTL index on scheduledPermanentDeletionAt removed to prevent silent bypass of S3/cleanup hooks
 DocumentSchema.index(
   { title: 'text', plainText: 'text' },
   { weights: { title: 10, plainText: 2 }, name: 'DocumentFullTextIndex' }

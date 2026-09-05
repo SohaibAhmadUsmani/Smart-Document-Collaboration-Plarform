@@ -20,6 +20,7 @@ import { CommentComposer } from './CommentComposer.jsx';
 export function CommentThread({
   comment,
   replies = [],
+  workspaceId,
   onReply,
   onResolve,
   onDelete,
@@ -31,8 +32,8 @@ export function CommentThread({
   const [isReplying, setIsReplying] = useState(false);
 
   const handleReplySubmit = useCallback(
-    async ({ body }) => {
-      await onReply(comment._id, { body });
+    async ({ body, mentions }) => {
+      await onReply(comment._id, { body, mentions });
       setIsReplying(false);
     },
     [comment._id, onReply]
@@ -75,9 +76,10 @@ export function CommentThread({
       {isReplying && (
         <div className="ml-4 pl-3 border-l-2 border-slate-100 dark:border-slate-800">
           <CommentComposer
+            workspaceId={workspaceId}
             onSubmit={handleReplySubmit}
             isSubmitting={isResolving}
-            placeholder="Write a reply..."
+            placeholder="Write a reply... (Type @ to mention)"
             submitLabel="Reply"
             onCancel={handleCancelReply}
           />

@@ -24,8 +24,10 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    const apiBase = import.meta.env?.VITE_API_URL || '';
+
     try {
-      const response = await fetch(`/api/auth/reset-password/${token}`, {
+      const response = await fetch(`${apiBase}/api/auth/reset-password/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })

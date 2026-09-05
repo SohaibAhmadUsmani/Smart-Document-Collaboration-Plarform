@@ -55,6 +55,38 @@ documentRouter.get(
   controller.getDocumentHandler
 );
 
+// GET /api/documents/:id/permissions - Fetch document collaborators and sharing settings
+documentRouter.get(
+  '/:id/permissions',
+  validator.validateDocumentId,
+  requireDocumentAccess('view'),
+  controller.getDocumentPermissionsHandler
+);
+
+// POST /api/documents/:id/permissions - Invite/grant document permission
+documentRouter.post(
+  '/:id/permissions',
+  validator.validateDocumentId,
+  requireDocumentAccess('share'),
+  controller.addDocumentPermissionHandler
+);
+
+// DELETE /api/documents/:id/permissions/:permissionId - Revoke document permission
+documentRouter.delete(
+  '/:id/permissions/:permissionId',
+  validator.validateDocumentId,
+  requireDocumentAccess('share'),
+  controller.removeDocumentPermissionHandler
+);
+
+// PUT /api/documents/:id/sharing - Update document general sharing mode
+documentRouter.put(
+  '/:id/sharing',
+  validator.validateDocumentId,
+  requireDocumentAccess('share'),
+  controller.updateDocumentSharingHandler
+);
+
 // PUT /api/documents/:id - Update document metadata
 documentRouter.put(
   '/:id',

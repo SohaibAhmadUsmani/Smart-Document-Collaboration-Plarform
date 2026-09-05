@@ -14,5 +14,8 @@ export { useNotifications } from './hooks/useNotifications.js';
 // Services
 export * from './services/notificationApi.js';
 
+// Pages
+export { NotificationsPage } from './pages/NotificationsPage.jsx';
+
 // Types
 export * from './types/notification.js';

@@ -127,12 +127,44 @@ export function usePresencePosition({
       refreshDecorations();
     };
 
+    /**
+     * Purges disconnected/inactive collaborators to eliminate ghost cursors.
+     *
+     * [ROMAN URDU]:
+     * Jab presence update aati hai, jo users ab room mein active nahi hain unhe
+     * `remotePositionsRef.current` se delete kar diya jata hai aur decorations
+     * refresh ki jati hain taake screen par ghost cursors na bachein.
+     */
+    const handlePresenceUpdate = (payload) => {
+      if (!docIdRef.current || payload.documentId !== docIdRef.current) return;
+
+      const activeIds = new Set(
+        (Array.isArray(payload.activeUsers) ? payload.activeUsers : []).map(
+          (u) => String(u.userId || u.id)
+        )
+      );
+
+      let changed = false;
+      for (const uid of remotePositionsRef.current.keys()) {
+        if (!activeIds.has(String(uid))) {
+          remotePositionsRef.current.delete(uid);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        refreshDecorations();
+      }
+    };
+
     socket.on(COLLABORATION_EVENTS.CURSOR_CHANGE, mergeRemote);
     socket.on(COLLABORATION_EVENTS.SELECTION_CHANGE, mergeRemote);
+    socket.on(COLLABORATION_EVENTS.PRESENCE_UPDATE, handlePresenceUpdate);
 
     return () => {
       socket.off(COLLABORATION_EVENTS.CURSOR_CHANGE, mergeRemote);
       socket.off(COLLABORATION_EVENTS.SELECTION_CHANGE, mergeRemote);
+      socket.off(COLLABORATION_EVENTS.PRESENCE_UPDATE, handlePresenceUpdate);
     };
   }, [socket, userId, refreshDecorations]);
 

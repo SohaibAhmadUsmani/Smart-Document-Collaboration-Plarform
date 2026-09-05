@@ -4,14 +4,24 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   resolve: {
-    dedupe: ['react', 'react-dom', 'react-router-dom'],
+    dedupe: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'prosemirror-view',
+      'prosemirror-state',
+      'prosemirror-model',
+      'prosemirror-transform',
+      '@tiptap/core',
+      '@tiptap/pm',
+    ],
   },
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
@@ -26,7 +36,7 @@ export default defineConfig({
         },
       },
       '/socket.io': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         ws: true,
       },

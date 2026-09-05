@@ -1,5 +1,6 @@
 import React from 'react';
 import { MessageSquare, Reply, AtSign, Share2, Shield, FileText, Trash2 } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 const TYPE_CONFIG = {
   mention: { icon: AtSign, label: 'mentioned you', color: 'text-blue-600' },
@@ -119,6 +120,18 @@ export function NotificationItem({ notification, onMarkAsRead, onDelete, isDelet
           <p className="text-[11px] text-slate-400 mt-0.5 truncate">
             Document: {typeof notification.document === 'object' ? notification.document.title || 'Untitled' : 'Related document'}
           </p>
+        )}
+        {notification.message && (
+          <p
+            className="text-xs text-slate-600 mt-1 line-clamp-2"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notification.message) }}
+          />
+        )}
+        {notification.comment && typeof notification.comment === 'object' && notification.comment.body && (
+          <p
+            className="text-xs text-slate-600 mt-1 line-clamp-2 italic bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notification.comment.body) }}
+          />
         )}
         <time className="text-[10px] text-slate-400 font-mono mt-1 block">
           {formatTimeAgo(notification.createdAt)}

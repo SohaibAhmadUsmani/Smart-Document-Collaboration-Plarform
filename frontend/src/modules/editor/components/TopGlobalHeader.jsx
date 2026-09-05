@@ -13,8 +13,11 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Command, User, Settings, LogOut, X } from 'lucide-react';
+import { Search, ChevronDown, Command, User, Settings, LogOut, X, Home, ArrowLeft, Folder, Briefcase } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { SmartBackButton } from './SmartBackButton.jsx';
 import { NotificationBell } from '../../notifications/components/NotificationBell.jsx';
+import { useAuth } from '../../auth/context/AuthContext.jsx';
 
 /**
  * TopGlobalHeader Component (DocSync Pro Global Navigation).
@@ -25,13 +28,30 @@ import { NotificationBell } from '../../notifications/components/NotificationBel
  * @returns {React.JSX.Element}
  */
 export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [showProfile, setShowProfile] = useState(false);
-  const [currentUser, setCurrentUser] = useState({
-    name: 'Loading...',
-    email: '',
-    avatar: 'https://ui-avatars.com/api/?name=User&background=random'
+  // Initialize authenticated user from localStorage immediately
+  // localStorage se foran authenticated user profile load karein
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const rawUser = localStorage.getItem('user');
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        return {
+          name: u.name || 'User',
+          email: u.email || '',
+          avatar: u.avatarUrl || u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'User')}&background=random`
+        };
+      }
+    } catch (_) {}
+    return {
+      name: 'User',
+      email: '',
+      avatar: 'https://ui-avatars.com/api/?name=User&background=random'
+    };
   });
   
   const searchInputRef = useRef(null);
@@ -39,6 +59,36 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
   const profileRef = useRef(null);
 
   useEffect(() => {
+    const handleProfileUpdate = (e) => {
+      // CustomEvent from user-profile-updated carries full user object in detail
+      if (e?.detail) {
+        const u = e.detail;
+        setCurrentUser({
+          name: u.name || 'User',
+          email: u.email || '',
+          avatar: u.avatarUrl || u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'User')}&background=random`
+        });
+        return;
+      }
+      // Native StorageEvent: re-read from localStorage when the 'user' key changes
+      if (e?.key === 'user' || e?.type === 'storage') {
+        try {
+          const rawUser = localStorage.getItem('user');
+          if (rawUser) {
+            const u = JSON.parse(rawUser);
+            setCurrentUser({
+              name: u.name || 'User',
+              email: u.email || '',
+              avatar: u.avatarUrl || u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'User')}&background=random`
+            });
+          }
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('storage', handleProfileUpdate);
+    window.addEventListener('user-profile-updated', handleProfileUpdate);
+
     async function fetchUser() {
       try {
         const token = localStorage.getItem('token');
@@ -47,31 +97,38 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
         });
         if (res.ok) {
           const data = await res.json();
-          // The API returns { success: true, data: user }
-          const user = data.data || data;
-          setCurrentUser({
-            name: user.name,
-            email: user.email,
-            avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`
-          });
-        } else {
-          // Fallback if not logged in but DEV_FAKE_AUTH is active
-          setCurrentUser({
-            name: 'Guest User',
-            email: 'guest@docplatform.local',
-            avatar: 'https://ui-avatars.com/api/?name=Guest&background=random'
-          });
+          // Backend returns { user: {...} } shape from getMyProfile
+          const user = data.user || data.data || data;
+          if (user && user.name) {
+            setCurrentUser({
+              name: user.name,
+              email: user.email,
+              avatar: user.avatarUrl || user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`
+            });
+            // Keep localStorage in sync with the latest server data
+            try {
+              const rawUser = localStorage.getItem('user');
+              const existing = rawUser ? JSON.parse(rawUser) : {};
+              localStorage.setItem('user', JSON.stringify({ ...existing, name: user.name, email: user.email }));
+            } catch (_) {}
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch profile', err);
+        // Fallback already provided by localStorage
       }
     }
     fetchUser();
+
+    return () => {
+      window.removeEventListener('storage', handleProfileUpdate);
+      window.removeEventListener('user-profile-updated', handleProfileUpdate);
+    };
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    window.location.href = '/login';
+    logout();
+    setShowProfile(false);
+    navigate('/login');
   };
 
   // Global CMD+K shortcut listener to focus search or open search modal
@@ -121,15 +178,55 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
       aria-label="Global Application Header"
       className="h-13 w-full px-3 sm:px-5 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-50 select-none"
     >
-      {/* Left: Global Search Input with responsive expansion */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-md mr-2">
+      {/* Left: Navigation Controls & Global Search Input with responsive expansion */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 mr-3">
+        {/* Navigation Group Pill */}
+        <div className="flex items-center gap-0.5 p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700/70 shadow-2xs flex-shrink-0">
+          <SmartBackButton
+            fallbackPath="/dashboard"
+            className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
+            iconClass="w-4 h-4"
+            title="Go Back"
+          />
+
+          <Link
+            to="/dashboard"
+            className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
+            title="Dashboard (Home)"
+            aria-label="Go to Dashboard"
+          >
+            <Home className="w-4 h-4" />
+          </Link>
+
+          <Link
+            to="/files"
+            className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
+            title="File Manager"
+            aria-label="Go to File Manager"
+          >
+            <Folder className="w-4 h-4" />
+          </Link>
+
+          <Link
+            to="/workspaces"
+            className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
+            title="Workspaces"
+            aria-label="Go to Workspaces"
+          >
+            <Briefcase className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {/* Global Search Bar (Spacious, rounded-xl with clean keycap badge) */}
         <div
           onClick={() => onSearchClick?.()}
-          className={`relative flex items-center transition-all duration-200 ease-out w-full cursor-pointer ${
-            searchFocused ? 'max-w-md' : 'max-w-[200px] xs:max-w-[240px] sm:max-w-xs'
+          className={`relative flex items-center transition-all duration-300 ease-out cursor-pointer ${
+            searchFocused
+              ? 'w-full max-w-lg'
+              : 'w-full max-w-[240px] xs:max-w-[280px] sm:max-w-sm md:max-w-md'
           }`}
         >
-          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 pointer-events-none" />
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 pointer-events-none" />
           <input
             ref={searchInputRef}
             type="text"
@@ -142,9 +239,9 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
             }}
             onClick={() => onSearchClick?.()}
             onBlur={() => setSearchFocused(false)}
-            placeholder="Search documents, files, and activity..."
-            aria-label="Search documents, files, and activity (Press Ctrl+K)"
-            className="w-full h-8.5 pl-9 pr-14 sm:pr-16 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-700/60 focus:bg-white dark:focus:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-lg border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-3 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all outline-none cursor-pointer"
+            placeholder="Search documents, files, and workspaces..."
+            aria-label="Search documents, files, and workspace (Press Ctrl+K)"
+            className="w-full h-9 pl-9.5 pr-16 bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl border border-slate-200/90 dark:border-slate-700/90 focus:border-blue-500 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none shadow-2xs cursor-pointer"
           />
 
           {/* Clear button or shortcut badge */}
@@ -156,14 +253,14 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
                 handleClearSearch();
               }}
               aria-label="Clear search text"
-              className="absolute right-2.5 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="absolute right-2.5 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <div className="hidden sm:flex absolute right-2.5 items-center gap-0.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-700/60 px-1.5 py-0.5 rounded pointer-events-none">
-              <Command className="w-3 h-3" />
-              <span>K</span>
+            <div className="hidden sm:flex absolute right-2.5 items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-700/80 px-2 py-0.5 rounded-md border border-slate-200/80 dark:border-slate-600/80 shadow-2xs pointer-events-none">
+              <Command className="w-3 h-3 text-slate-400" />
+              <span className="font-semibold">K</span>
             </div>
           )}
         </div>
@@ -210,8 +307,11 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
               <button
                 type="button"
                 role="menuitem"
-                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300"
-                onClick={() => setShowProfile(false)}
+                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer"
+                onClick={() => {
+                  setShowProfile(false);
+                  navigate('/settings');
+                }}
               >
                 <User className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Profile & Account
               </button>
@@ -219,7 +319,7 @@ export function TopGlobalHeader({ onSearchClick, onNavigateToDocument }) {
                 type="button"
                 role="menuitem"
                 className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300"
-                onClick={() => setShowProfile(false)}
+                onClick={() => { setShowProfile(false); navigate('/workspaces'); }}
               >
                 <Settings className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Workspace Settings
               </button>

@@ -58,7 +58,6 @@ export * from './utils/motionVariants.js';
 
 // API Services & Fixtures
 export * from './services/documentApi.js';
-export * from './services/mockData.js';
 
 // TipTap Extensions & Schema
 export { getEditorExtensions } from './extensions/schema.js';

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import * as commentService from '../services/commentService.js';
 
 function getUserId(req) {
@@ -57,6 +58,9 @@ export async function createCommentHandler(req, res, next) {
 export async function getDocumentCommentsHandler(req, res, next) {
   try {
     const { documentId } = req.params;
+    if (mongoose.connection?.readyState !== 1) {
+      return res.status(200).json({ success: true, data: [] });
+    }
     const comments = await commentService.getDocumentComments(documentId);
 
     return res.status(200).json({

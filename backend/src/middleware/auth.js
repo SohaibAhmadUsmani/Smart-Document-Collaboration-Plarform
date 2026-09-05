@@ -28,30 +28,30 @@ export function requireAuth(req, res, next) {
         };
         return next();
       } catch (tokenErr) {
-        if (env.nodeEnv !== 'development') {
-          return res.status(401).json({
-            success: false,
-            error: 'Unauthorized',
-            message: 'Invalid or expired session token'
-          });
-        }
-        console.warn('[Auth Notice]: Invalid session token in dev mode, using fallback user:', tokenErr.message);
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized',
+          message: 'Invalid or expired session token'
+        });
       }
     }
 
-    if (!req.user) {
-      if (env.nodeEnv === 'development') {
-        // Development-only fallback — matches seeded User in seedDatabase.js
-        req.user = {
-          id: '66cc00000000000000000004',
-          _id: '66cc00000000000000000004',
-          name: 'Muzammil (Document Editor Lead)',
-          email: 'muzammil@docplatform.local',
-          role: 'owner'
-        };
-        return next();
-      }
+    // DEV_FAKE_AUTH fallback: In development, if no token provided and DEV_FAKE_AUTH is enabled,
+    // inject a mock dev user so teammates can test without logging in.
+    // [ROMAN URDU]: Development mein agar token nahi hai aur DEV_FAKE_AUTH enabled hai toh mock user inject karo.
+    if (!req.user && process.env.NODE_ENV !== 'production' && process.env.DEV_FAKE_AUTH === 'true') {
+      const fakeUserId = process.env.DEV_FAKE_USER_ID || '000000000000000000000001';
+      req.user = {
+        id: fakeUserId,
+        _id: fakeUserId,
+        email: 'dev@docsync.pro',
+        role: 'owner',
+        name: 'Dev User',
+      };
+      return next();
+    }
 
+    if (!req.user) {
       return res.status(401).json({
         success: false,
         error: 'Unauthorized',
